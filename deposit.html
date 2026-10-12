@@ -1,91 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deposit - INVEXORA</title>
-
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
-
 </head>
 
 <body class="dashboard-page">
 
 <header class="dashboard-header">
-
-    <a href="index.html" class="logo">
-        INVEXORA<span>PRO</span>
-    </a>
-
+    <a href="index.html" class="logo"><img src="logo.svg" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
     <div class="user-menu">
-
-        <a href="investment.html" class="back-link">
-            ← Back to plans
-        </a>
-
-        <button onclick="logout()">
-            Logout
-        </button>
-
+        <a href="investment.html" class="back-link">← Back to plans</a>
+        <button onclick="logout()">Logout</button>
     </div>
-
 </header>
-
 
 <main class="deposit-page">
 
     <div class="dashboard-title">
-
         <span>DEPOSIT</span>
-
         <h1>Fund Your Investment</h1>
-
-        <p>
-            Enter the virtual amount you want to invest in your selected plan.
-        </p>
-
+        <p>Enter the virtual amount you want to invest in your selected plan.</p>
     </div>
-
 
     <div class="deposit-layout">
 
         <!-- SELECTED PLAN -->
         <aside class="deposit-plan">
-
             <div class="plan-name" id="planName">PLAN</div>
-
             <h2 id="planRange">$0 - $0</h2>
-
-            <div class="plan-line">
-                Minimum Investment
-                <strong id="planMin">$0</strong>
-            </div>
-
-            <div class="plan-line">
-                Maximum Investment
-                <strong id="planMax">$0</strong>
-            </div>
-
-            <div class="plan-line">
-                Validity
-                <strong id="planDays">0 Days</strong>
-            </div>
-
-            <div class="plan-line">
-                Daily Profit
-                <strong id="planRate">0%</strong>
-            </div>
-
-            <a href="investment.html" class="change-plan">
-                Change plan
-            </a>
-
+            <div class="plan-line">Minimum Investment<strong id="planMin">$0</strong></div>
+            <div class="plan-line">Maximum Investment<strong id="planMax">$0</strong></div>
+            <div class="plan-line">Validity<strong id="planDays">0 Days</strong></div>
+            <div class="plan-line">Daily Profit<strong id="planRate">0%</strong></div>
+            <a href="investment.html" class="change-plan">Change plan</a>
         </aside>
-
 
         <!-- DEPOSIT FORM -->
         <section class="deposit-box">
@@ -101,81 +53,41 @@
                 </div>
 
                 <div class="form-group">
-
                     <label for="depositAmount">Deposit Amount (virtual USD)</label>
-
                     <div class="amount-wrap">
                         <span>$</span>
-                        <input
-                            type="number"
-                            id="depositAmount"
-                            placeholder="0.00"
-                            step="1"
-                            required
-                        >
+                        <input type="number" id="depositAmount" placeholder="0.00" step="1" required>
                     </div>
-
                     <div class="quick-amounts">
                         <button type="button" class="chip" id="useMin">Minimum</button>
                         <button type="button" class="chip" id="useMax">Maximum</button>
                     </div>
-
                     <p class="form-hint" id="amountHint"></p>
-
                 </div>
-
 
                 <div class="form-group">
-
                     <label for="depositNote">Note (optional)</label>
-
                     <input type="text" id="depositNote" maxlength="200" placeholder="Anything you want the admin to know">
-
                 </div>
-
 
                 <div class="deposit-summary">
-
-                    <div>
-                        <span>Selected plan</span>
-                        <strong id="sumPlan">-</strong>
-                    </div>
-
-                    <div>
-                        <span>Amount</span>
-                        <strong id="sumAmount">$0</strong>
-                    </div>
-
-                    <div>
-                        <span>Validity</span>
-                        <strong id="sumDays">-</strong>
-                    </div>
-
+                    <div><span>Selected plan</span><strong id="sumPlan">-</strong></div>
+                    <div><span>Amount</span><strong id="sumAmount">$0</strong></div>
+                    <div><span>Validity</span><strong id="sumDays">-</strong></div>
                 </div>
-
 
                 <p class="form-error" id="depositError" role="alert"></p>
 
-                <button type="submit" class="full-btn" id="depositBtn">
-                    Submit Deposit Request
-                </button>
+                <button type="submit" class="full-btn" id="depositBtn">Submit Deposit Request</button>
 
             </form>
 
-
             <!-- SUCCESS MESSAGE -->
             <div class="deposit-success" id="depositSuccess" hidden>
-
                 <div class="success-icon">✓</div>
-
                 <h2>Deposit request submitted</h2>
-
                 <p id="successText"></p>
-
-                <a href="dashboard.html#history" class="btn btn-primary btn-large">
-                    View My Transactions
-                </a>
-
+                <a href="dashboard.html#history" class="btn btn-primary btn-large">View My Transactions</a>
             </div>
 
         </section>
@@ -183,7 +95,6 @@
     </div>
 
 </main>
-
 
 <script src="app.js"></script>
 
