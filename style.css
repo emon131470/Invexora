@@ -1670,4 +1670,25 @@ img {
 }
 
 
+/* ===== INVEXORA logo (add this to the END of style.css) ===== */
+.logo {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+}
 
+.logo img {
+    display: block;
+    height: 40px;
+    width: auto;
+}
+
+.footer .logo img {
+    height: 44px;
+}
+
+@media (max-width: 600px) {
+    .logo img {
+        height: 34px;
+    }
+}
