@@ -1,106 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
-    <title>Investment Plans - InvestPro</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investment Plans - INVEXORA</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body class="dashboard-page">
-
 <header class="dashboard-header">
-
-    <a href="index.html" class="logo">
-        INVEST<span>PRO</span>
-    </a>
-
+    <a href="index.html" class="logo"><img src="logo.svg" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
     <div class="user-menu">
-
-        <a href="dashboard.html" class="back-link">
-            ← Dashboard
-        </a>
-
-        <span id="planUser">
-            User
-        </span>
-
-        <button onclick="logout()">
-            Logout
-        </button>
-
+        <a href="dashboard.html" class="back-link">← Dashboard</a>
+        <span id="planUser">User</span>
+        <button onclick="logout()">Logout</button>
     </div>
-
 </header>
 
-
 <main class="plans-page">
-
     <div class="dashboard-title">
-
         <span>INVESTMENT PLANS</span>
-
-        <h1>
-            Choose Your Investment Plan
-        </h1>
-
-        <p>
-            Review the available plans and choose an option
-            that matches your goals. All amounts are virtual (demo).
-        </p>
-
+        <h1>Choose Your Investment Plan</h1>
+        <p>Review the available plans and choose an option that matches your goals. All amounts are virtual (demo).</p>
     </div>
-
-
     <div class="plans-container" id="plansContainer">
-        <div class="empty" style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0;">
-            Loading plans...
-        </div>
+        <div class="empty" style="grid-column:1/-1;color:var(--muted);text-align:center;padding:40px 0;">Loading plans...</div>
     </div>
-
 </main>
 
-
 <script src="app.js"></script>
-
 <script>
-
     function esc(s) {
         return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
                                          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
-
     function money(n) {
         return "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
     }
-
     IPReady.then(async function (ctx) {
-
         var box = document.getElementById("plansContainer");
-
-        var res = await ctx.sb.from("plans")
-            .select("*")
-            .eq("active", true)
-            .order("sort_order");
-
+        var res = await ctx.sb.from("plans").select("*").eq("active", true).order("sort_order");
         if (res.error) {
             box.innerHTML = '<div class="empty" style="grid-column:1/-1;text-align:center;">Could not load plans: ' + esc(res.error.message) + '</div>';
             return;
         }
-
         if (!res.data.length) {
             box.innerHTML = '<div class="empty" style="grid-column:1/-1;text-align:center;">No plans are available right now.</div>';
             return;
         }
-
         box.innerHTML = res.data.map(function (p) {
-
             return '<div class="plan-card' + (p.featured ? ' featured' : '') + '">' +
                 (p.featured ? '<div class="popular">POPULAR</div>' : '') +
                 '<div class="plan-name">' + esc(p.name).toUpperCase() + '</div>' +
@@ -111,17 +59,13 @@
                 '<div class="plan-line">Daily Profit<strong>' + Number(p.daily_rate) + '%</strong></div>' +
                 '<button class="full-btn" data-plan="' + esc(p.id) + '">Select Plan</button>' +
                 '</div>';
-
         }).join("");
-
     }).catch(function () {});
 
     document.getElementById("plansContainer").addEventListener("click", function (e) {
         var b = e.target.closest("button[data-plan]");
         if (b) window.location.href = "deposit.html?plan=" + encodeURIComponent(b.getAttribute("data-plan"));
     });
-
 </script>
-
 </body>
 </html>
