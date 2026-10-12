@@ -1,0 +1,16 @@
+ <escape><svg width="320" height="90" viewBox="0 0 320 90" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="invexoraGradient" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#075BFF"/>
+      <stop offset="55%" stop-color="#00A8FF"/>
+      <stop offset="100%" stop-color="#00E5C3"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4,8)">
+    <path d="M5 12 L24 12 L44 48 L30 62 Z" fill="#0867F5"/>
+    <path d="M34 29 L48 47 L76 5 L72 30 L50 66 L34 48 Z" fill="url(#invexoraGradient)"/>
+    <path d="M48 49 L68 28 L64 44 L50 66 Z" fill="#00D9B8"/>
+  </g>
+  <text x="91" y="43" font-family="Arial, sans-serif" font-size="29" font-weight="800" fill="#F8FAFC">INVEX<tspan fill="url(#invexoraGradient)">ORA</tspan></text>
+  <text x="94" y="65" font-family="Arial, sans-serif" font-size="9" letter-spacing="2" fill="#A9BCD3">INVEST • GROW • TOGETHER</text>
+</svg></escape>
