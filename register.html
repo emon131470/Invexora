@@ -3,123 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Register - InvestPro</title>
-
+    <title>Register - INVEXORA</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="auth-page">
 
 <header class="header">
-
-    <a href="index.html" class="logo">
-        INVEST<span>PRO</span>
-    </a>
-
+    <a href="index.html" class="logo"><img src="logo.svg" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
 </header>
 
-
 <div class="auth-container">
-
     <div class="auth-box">
 
         <div class="auth-title">
-
-            <span>JOIN INVESTPRO</span>
-
+            <span>JOIN INVEXORA</span>
             <h1>Create Account</h1>
-
-            <p>
-                We will email you a code to verify your address.
-            </p>
-
+            <p>We will email you a code to verify your address.</p>
         </div>
-
 
         <form id="registerForm" novalidate>
 
             <div class="form-row">
-
                 <div class="form-group">
-
                     <label for="firstName">First Name</label>
-
-                    <input
-                        type="text"
-                        id="firstName"
-                        required
-                        autocomplete="given-name"
-                        placeholder="First Name"
-                    >
-
+                    <input type="text" id="firstName" required autocomplete="given-name" placeholder="First Name">
                 </div>
-
-
                 <div class="form-group">
-
                     <label for="lastName">Last Name</label>
-
-                    <input
-                        type="text"
-                        id="lastName"
-                        required
-                        autocomplete="family-name"
-                        placeholder="Last Name"
-                    >
-
+                    <input type="text" id="lastName" required autocomplete="family-name" placeholder="Last Name">
                 </div>
-
             </div>
 
-
             <div class="form-group">
-
                 <label for="email">Email</label>
-
-                <input
-                    type="email"
-                    id="email"
-                    required
-                    autocomplete="email"
-                    placeholder="example@gmail.com"
-                >
-
+                <input type="email" id="email" required autocomplete="email" placeholder="example@gmail.com">
             </div>
 
-
             <div class="form-group">
-
                 <label for="phone">Phone</label>
-
-                <input
-                    type="tel"
-                    id="phone"
-                    required
-                    autocomplete="tel"
-                    placeholder="+880"
-                >
-
+                <input type="tel" id="phone" required autocomplete="tel" placeholder="+880">
             </div>
-
 
             <div class="form-group">
-
                 <label for="referral">Referral Code</label>
-
-                <input
-                    type="text"
-                    id="referral"
-                    placeholder="Optional"
-                >
-
+                <input type="text" id="referral" placeholder="Optional">
             </div>
 
-
-            <button type="submit" class="full-btn">
-                Send Verification Code
-            </button>
-
+            <button type="submit" class="full-btn">Send Verification Code</button>
 
             <p class="form-bottom">
                 Already have an account?
@@ -127,11 +59,8 @@
             </p>
 
         </form>
-
     </div>
-
 </div>
-
 
 <script>
     // Fill the referral code automatically when the user opens a referral link
