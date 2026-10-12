@@ -1,5 +1,5 @@
 /* =====================================================
-   INVESTPRO (DEMO / SIMULATION) - app.js
+   INVEXORA (DEMO / SIMULATION) - app.js
 
    TWO MODES (automatic):
    1) LOCAL MODE  - works right away, no setup. Data is saved
@@ -83,8 +83,8 @@
 
         opts = opts || {};
 
-        var DB_KEY      = "investpro_local_db";
-        var SESSION_KEY = "investpro_local_session";
+        var DB_KEY      = "INVEXORA_local_db";
+        var SESSION_KEY = "INVEXORA_local_session";
         var ADMINS      = (opts.adminEmails || []).map(lower);
         var otps        = {};
 
