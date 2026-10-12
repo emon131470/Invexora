@@ -7,272 +7,108 @@
     <meta name="robots" content="noindex, nofollow">
 
     <title>Admin Panel - INVEXORA</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&display=swap');
 
         :root {
-            --bg: #f1faf5;
-            --bg-deep: #ffffff;
-            --surface: #ffffff;
-            --surface-2: #f5fbf8;
-            --line: rgba(18,70,45,0.10);
-            --line-strong: rgba(18,70,45,0.20);
-            --text: #10261b;
-            --muted: #4d6a5a;
-            --faint: #7b9588;
-            --gold: #126f47;
-            --gold-light: #178a58;
-            --gold-ink: #ffffff;
-            --good: #178a58;
-            --bad: #d64545;
+            --bg: #f1faf5; --bg-deep: #ffffff; --surface: #ffffff; --surface-2: #f5fbf8;
+            --line: rgba(18,70,45,0.10); --line-strong: rgba(18,70,45,0.20);
+            --text: #10261b; --muted: #4d6a5a; --faint: #7b9588;
+            --gold: #126f47; --gold-light: #178a58; --gold-ink: #ffffff;
+            --good: #178a58; --bad: #d64545;
             --serif: "Fraunces", Georgia, serif;
             --sans: "Inter", "Segoe UI", Arial, sans-serif;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            font-family: var(--sans);
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
+        body { font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; }
 
         [hidden] { display: none !important; }
 
         h1, h2 { font-family: var(--serif); font-weight: 600; }
 
-        .logo {
-            font-family: var(--serif);
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-        }
-        .logo span { color: var(--gold); }
-
         button { font-family: inherit; cursor: pointer; }
 
-        .btn {
-            padding: 11px 22px;
-            border-radius: 10px;
-            border: 1px solid transparent;
-            background: linear-gradient(135deg, var(--gold-light), var(--gold));
-            color: var(--gold-ink);
-            font-size: 14px;
-            font-weight: 600;
-            transition: 0.25s;
-        }
+        .btn { padding: 11px 22px; border-radius: 10px; border: 1px solid transparent; background: linear-gradient(135deg, var(--gold-light), var(--gold)); color: var(--gold-ink); font-size: 14px; font-weight: 600; transition: 0.25s; }
         .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(23,138,88,0.30); }
 
-        .btn-ghost {
-            background: transparent;
-            color: var(--text);
-            border-color: var(--line-strong);
-        }
+        .btn-ghost { background: transparent; color: var(--text); border-color: var(--line-strong); }
         .btn-ghost:hover { border-color: var(--gold); color: var(--gold-light); box-shadow: none; }
 
         /* ---------- LOGIN ---------- */
-        .login-wrap {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            background: radial-gradient(circle at 50% 0%, rgba(34,165,106,0.16), transparent 50%), var(--bg);
-        }
+        .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(circle at 50% 0%, rgba(34,165,106,0.16), transparent 50%), var(--bg); }
 
-        .login-box {
-            width: 100%;
-            max-width: 420px;
-            padding: 40px;
-            background: linear-gradient(180deg, var(--surface-2), var(--surface));
-            border: 1px solid var(--line-strong);
-            border-radius: 20px;
-            box-shadow: 0 30px 80px rgba(16,64,40,0.15);
-        }
+        .login-box { width: 100%; max-width: 420px; padding: 40px; background: linear-gradient(180deg, var(--surface-2), var(--surface)); border: 1px solid var(--line-strong); border-radius: 20px; box-shadow: 0 30px 80px rgba(16,64,40,0.15); }
 
-        .login-box .tag {
-            display: block;
-            margin: 18px 0 6px;
-            color: var(--gold);
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 1.8px;
-        }
+        .login-box .tag { display: block; margin: 18px 0 6px; color: var(--gold); font-size: 12px; font-weight: 600; letter-spacing: 1.8px; }
 
         .login-box h1 { font-size: 30px; margin-bottom: 26px; }
 
         .field { margin-bottom: 16px; }
         .field label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 13px; }
-        .field input {
-            width: 100%;
-            padding: 13px 15px;
-            border-radius: 10px;
-            border: 1px solid var(--line-strong);
-            background: #fbfefc;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 14px;
-            outline: none;
-        }
+        .field input { width: 100%; padding: 13px 15px; border-radius: 10px; border: 1px solid var(--line-strong); background: #fbfefc; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
         .field input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(34,165,106,0.18); }
 
         .login-box .btn { width: 100%; padding: 14px; margin-top: 6px; }
         .err { min-height: 20px; margin-top: 12px; color: var(--bad); font-size: 13px; }
 
         /* ---------- PANEL ---------- */
-        .topbar {
-            height: 72px;
-            padding: 0 5%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--bg-deep);
-            border-bottom: 1px solid var(--line);
-        }
+        .topbar { height: 72px; padding: 0 5%; display: flex; align-items: center; justify-content: space-between; background: var(--bg-deep); border-bottom: 1px solid var(--line); }
         .topbar .right { display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 13px; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-tag { font-size: 12px; color: var(--faint); letter-spacing: 1.5px; }
 
         .wrap { max-width: 1250px; margin: 0 auto; padding: 44px 24px 70px; }
 
         .head h1 { font-size: 34px; }
         .head p { color: var(--muted); margin-bottom: 30px; }
 
-        .notice {
-            margin-bottom: 28px;
-            padding: 14px 18px;
-            border-radius: 12px;
-            border: 1px solid rgba(23,138,88,0.30);
-            background: #e1f5ea;
-            color: var(--gold-light);
-            font-size: 13px;
-        }
-
         .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 34px; }
-        .stat {
-            padding: 24px;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-        }
+        .stat { padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
         .stat small { display: block; color: var(--faint); font-size: 13px; margin-bottom: 8px; }
         .stat strong { font-family: var(--serif); font-size: 30px; font-weight: 600; }
 
-        .toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-bottom: 16px;
-        }
+        .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
         .tabs { display: flex; gap: 8px; }
-        .tab {
-            padding: 10px 20px;
-            border-radius: 10px;
-            border: 1px solid var(--line-strong);
-            background: transparent;
-            color: var(--muted);
-            font-size: 14px;
-            font-weight: 500;
-            transition: 0.25s;
-        }
+        .tab { padding: 10px 20px; border-radius: 10px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); font-size: 14px; font-weight: 500; transition: 0.25s; }
         .tab.active { background: var(--surface-2); border-color: var(--gold); color: var(--gold-light); }
 
-        .search {
-            width: 280px;
-            max-width: 100%;
-            padding: 11px 15px;
-            border-radius: 10px;
-            border: 1px solid var(--line-strong);
-            background: #fbfefc;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 14px;
-            outline: none;
-        }
+        .search { width: 280px; max-width: 100%; padding: 11px 15px; border-radius: 10px; border: 1px solid var(--line-strong); background: #fbfefc; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
         .search:focus { border-color: var(--gold); }
 
-        .table-box {
-            overflow-x: auto;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-        }
+        .table-box { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
         table { width: 100%; border-collapse: collapse; min-width: 1100px; }
         th, td { padding: 15px 18px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--line); }
         th { color: var(--faint); font-size: 12px; font-weight: 600; letter-spacing: 1px; background: #f0f8f3; }
         tr:last-child td { border-bottom: none; }
         td.muted { color: var(--muted); }
 
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .badge.Pending  { background: #fdf1d8; color: #a86a0c; }
         .badge.Approved { background: #e1f5ea; color: #178a58; }
         .badge.Rejected { background: #fde8e8; color: #d64545; }
 
         .act { display: flex; gap: 8px; }
-        .act button {
-            padding: 6px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--line-strong);
-            background: transparent;
-            color: var(--text);
-            font-size: 12px;
-            transition: 0.25s;
-        }
+        .act button { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line-strong); background: transparent; color: var(--text); font-size: 12px; transition: 0.25s; }
         .act .ok:hover  { border-color: var(--good); color: var(--good); }
         .act .no:hover  { border-color: var(--bad);  color: var(--bad); }
 
         .empty { padding: 50px 24px; text-align: center; color: var(--muted); font-size: 14px; }
 
-        @media (max-width: 900px) {
-            .stats { grid-template-columns: repeat(2, 1fr); }
-        }
-        @media (max-width: 520px) {
-            .stats { grid-template-columns: 1fr; }
-            .login-box { padding: 28px; }
-        }
-    
-        .cell-input {
-            width: 90px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            border: 1px solid var(--line-strong);
-            background: #fbfefc;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 13px;
-            outline: none;
-        }
+        @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 520px) { .stats { grid-template-columns: 1fr; } .login-box { padding: 28px; } }
+
+        .cell-input { width: 90px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line-strong); background: #fbfefc; color: var(--text); font-family: inherit; font-size: 13px; outline: none; }
         .cell-input:focus { border-color: var(--gold-light); }
 
-        .toast {
-            min-height: 22px;
-            margin-bottom: 14px;
-            font-size: 13px;
-            font-weight: 600;
-        }
+        .toast { min-height: 22px; margin-bottom: 14px; font-size: 13px; font-weight: 600; }
         .toast.err { color: var(--bad); }
         .toast.ok  { color: var(--good); }
 
-        .settings-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 22px;
-            padding: 18px 20px;
-            background: var(--surface);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-        }
+        .settings-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 22px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
         .settings-row label { color: var(--muted); font-size: 14px; font-weight: 500; }
 
         .small { font-size: 12px; color: var(--faint); }
@@ -286,7 +122,7 @@
 
     <form class="login-box" id="adminLoginForm" novalidate>
 
-        <div class="logo">INVEST<span>PRO</span></div>
+        <img src="logo.svg" alt="INVEXORA" style="display:block;height:44px;width:auto">
 
         <span class="tag">ADMIN ACCESS</span>
         <h1>Admin Login</h1>
@@ -309,7 +145,10 @@
 <div id="panelView" hidden>
 
     <header class="topbar">
-        <div class="logo">INVEST<span>PRO</span> <small style="font-family:var(--sans);font-size:12px;color:var(--faint);letter-spacing:1.5px;">ADMIN</small></div>
+        <div class="brand">
+            <img src="logo.svg" alt="INVEXORA" style="display:block;height:38px;width:auto">
+            <span class="brand-tag">ADMIN</span>
+        </div>
         <div class="right">
             <span id="adminName"></span>
             <a href="index.html" style="color:var(--muted);">View site</a>
