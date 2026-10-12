@@ -1,59 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
     <meta charset="UTF-8">
-
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - INVEXORA</title>
-
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
-
 </head>
 
 <body class="dashboard-page">
 
 <header class="dashboard-header">
-
-    <a href="index.html" class="logo">
-        INVEST<span>PRO</span>
-    </a>
-
+    <a href="index.html" class="logo"><img src="logo.svg" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
     <div class="user-menu">
-
-        <span id="welcomeUser">
-            Welcome
-        </span>
-
-        <button onclick="logout()">
-            Logout
-        </button>
-
+        <span id="welcomeUser">Welcome</span>
+        <button onclick="logout()">Logout</button>
     </div>
-
 </header>
-
 
 <main class="dashboard">
 
     <div class="dashboard-title">
-
         <span>MY DASHBOARD</span>
-
-        <h1>
-            Welcome to your account
-        </h1>
-
-        <p>
-            Manage your account and explore available plans.
-        </p>
-
+        <h1>Welcome to your account</h1>
+        <p>Manage your account and explore available plans.</p>
     </div>
 
     <p class="form-error" id="loadError" role="alert"></p>
-
 
     <!-- DASHBOARD MENU -->
     <nav class="dash-menu" id="dashMenu">
@@ -64,56 +37,23 @@
         <button data-view="history">Transactions</button>
     </nav>
 
-
     <!-- ================= OVERVIEW ================= -->
     <section class="dash-view" id="view-overview">
 
         <div class="dashboard-cards">
-
-            <div class="dash-card">
-                <small>Account Balance</small>
-                <strong id="balanceVal">$0.00</strong>
-            </div>
-
-            <div class="dash-card">
-                <small>Active Investment</small>
-                <strong id="investVal">$0.00</strong>
-            </div>
-
-            <div class="dash-card">
-                <small>Total Profit</small>
-                <strong id="profitVal">$0.00</strong>
-            </div>
-
-            <div class="dash-card">
-                <small>Referral Bonus</small>
-                <strong id="bonusVal">$0.00</strong>
-            </div>
-
+            <div class="dash-card"><small>Account Balance</small><strong id="balanceVal">$0.00</strong></div>
+            <div class="dash-card"><small>Active Investment</small><strong id="investVal">$0.00</strong></div>
+            <div class="dash-card"><small>Total Profit</small><strong id="profitVal">$0.00</strong></div>
+            <div class="dash-card"><small>Referral Bonus</small><strong id="bonusVal">$0.00</strong></div>
         </div>
 
-
         <div class="dashboard-action">
-
-            <h2>
-                Explore Investment Plans
-            </h2>
-
-            <p>
-                Login users can review the available plans.
-            </p>
-
-            <a href="investment.html"
-               class="btn btn-primary btn-large">
-
-                View Investment Plans →
-
-            </a>
-
+            <h2>Explore Investment Plans</h2>
+            <p>Login users can review the available plans.</p>
+            <a href="investment.html" class="btn btn-primary btn-large">View Investment Plans →</a>
         </div>
 
     </section>
-
 
     <!-- ================= MY INVESTMENTS ================= -->
     <section class="dash-view" id="view-investments" hidden>
@@ -126,18 +66,14 @@
         <div class="table-box" id="invTable"></div>
 
         <div class="log-box" id="dailyLog" hidden>
-
             <div class="log-head">
                 <h3 id="logTitle">Daily Profit</h3>
                 <button type="button" class="chip" id="closeLog">Close</button>
             </div>
-
             <div class="table-box" id="logTable"></div>
-
         </div>
 
     </section>
-
 
     <!-- ================= WITHDRAW ================= -->
     <section class="dash-view" id="view-withdraw" hidden>
@@ -150,36 +86,15 @@
         <div class="withdraw-layout">
 
             <aside class="balance-card">
-
                 <small>Available to withdraw</small>
-
                 <strong id="wdAvailable">$0.00</strong>
-
-                <div class="plan-line">
-                    Total profit earned
-                    <strong id="wdProfit">$0.00</strong>
-                </div>
-
-                <div class="plan-line">
-                    Referral bonus
-                    <strong id="wdRef">$0.00</strong>
-                </div>
-
-                <div class="plan-line">
-                    Already withdrawn / pending
-                    <strong id="wdUsed">$0.00</strong>
-                </div>
-
-                <div class="plan-line">
-                    Minimum withdrawal
-                    <strong id="wdMin">$0</strong>
-                </div>
-
+                <div class="plan-line">Total profit earned<strong id="wdProfit">$0.00</strong></div>
+                <div class="plan-line">Referral bonus<strong id="wdRef">$0.00</strong></div>
+                <div class="plan-line">Already withdrawn / pending<strong id="wdUsed">$0.00</strong></div>
+                <div class="plan-line">Minimum withdrawal<strong id="wdMin">$0</strong></div>
             </aside>
 
-
             <div class="deposit-box">
-
                 <form id="wdForm" novalidate>
 
                     <div class="form-group">
@@ -201,18 +116,14 @@
                     <p class="form-error" id="wdError" role="alert"></p>
                     <p class="form-ok" id="wdOk" role="status"></p>
 
-                    <button type="submit" class="full-btn" id="wdBtn">
-                        Request Withdrawal
-                    </button>
+                    <button type="submit" class="full-btn" id="wdBtn">Request Withdrawal</button>
 
                 </form>
-
             </div>
 
         </div>
 
     </section>
-
 
     <!-- ================= REFERRAL ================= -->
     <section class="dash-view" id="view-referral" hidden>
@@ -225,20 +136,15 @@
         <div class="ref-grid">
 
             <div class="ref-code-card">
-
                 <small>Your referral code</small>
-
                 <strong id="refCode">-</strong>
-
                 <button type="button" class="chip" id="copyCode">Copy code</button>
 
                 <small class="ref-label">Your referral link</small>
-
                 <div class="ref-link">
                     <input type="text" id="refLink" readonly>
                     <button type="button" class="chip" id="copyLink">Copy link</button>
                 </div>
-
             </div>
 
             <div class="ref-rates">
@@ -249,22 +155,9 @@
         </div>
 
         <div class="dashboard-cards ref-stats">
-
-            <div class="dash-card">
-                <small>Referred Users</small>
-                <strong id="refUsers">0</strong>
-            </div>
-
-            <div class="dash-card">
-                <small>Commission Earned</small>
-                <strong id="refEarned">$0.00</strong>
-            </div>
-
-            <div class="dash-card">
-                <small>Pending Commission</small>
-                <strong id="refPending">$0.00</strong>
-            </div>
-
+            <div class="dash-card"><small>Referred Users</small><strong id="refUsers">0</strong></div>
+            <div class="dash-card"><small>Commission Earned</small><strong id="refEarned">$0.00</strong></div>
+            <div class="dash-card"><small>Pending Commission</small><strong id="refPending">$0.00</strong></div>
         </div>
 
         <h3 class="sub-title">Your referrals</h3>
@@ -272,7 +165,6 @@
         <div class="table-box" id="refTable"></div>
 
     </section>
-
 
     <!-- ================= TRANSACTIONS ================= -->
     <section class="dash-view" id="view-history" hidden>
@@ -287,7 +179,6 @@
     </section>
 
 </main>
-
 
 <script src="app.js"></script>
 
