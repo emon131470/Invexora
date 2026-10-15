@@ -98,6 +98,16 @@
                 <form id="wdForm" novalidate>
 
                     <div class="form-group">
+                            <label>Payment Method (demo)</label>
+                            <div class="method-tabs" id="wdMethods">
+                                <button type="button" class="method-tab active" data-method="Bank Transfer"><b>🏦</b>Bank Transfer</button>
+                                <button type="button" class="method-tab" data-method="Crypto (USDT)"><b>₮</b>Crypto (USDT)</button>
+                                <button type="button" class="method-tab" data-method="Mobile Wallet"><b>📱</b>Mobile Wallet</button>
+                            </div>
+                            <p class="form-hint">Demo only. No real account or wallet is needed and no real money moves.</p>
+                        </div>
+
+                        <div class="form-group">
                         <label for="wdAmount">Amount (virtual USD)</label>
                         <div class="amount-wrap">
                             <span>$</span>
@@ -187,6 +197,7 @@
     var ctx = null;
     var S = { summary: null, inv: [], logs: [], deps: [], wds: [], refs: [], plans: [] };
     var openLog = -1;
+    var getWdMethod = null;
 
 
     /* ===== HELPERS ===== */
@@ -195,6 +206,19 @@
     function esc(s) {
         return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
                                          .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    
+    function bindMethods(boxId) {
+        var box = document.getElementById(boxId), cur = "Bank Transfer";
+        box.addEventListener("click", function (e) {
+            var b = e.target.closest(".method-tab");
+            if (!b) return;
+            box.querySelectorAll(".method-tab").forEach(function (x) { x.classList.remove("active"); });
+            b.classList.add("active");
+            cur = b.getAttribute("data-method");
+        });
+        return function () { return cur; };
     }
 
     function money(n) {
@@ -563,7 +587,7 @@
 
         var r = await ctx.sb.rpc("request_withdrawal", {
             p_amount: amount,
-            p_note: $("wdNote").value.trim() || null
+            p_note: "[" + getWdMethod() + "] " + $("wdNote").value.trim()
         });
 
         $("wdBtn").disabled = false;
@@ -584,6 +608,7 @@
     IPReady.then(function (c) {
 
         ctx = c;
+        getWdMethod = bindMethods("wdMethods");
 
         showView((location.hash || "#overview").slice(1));
         loadAll();
