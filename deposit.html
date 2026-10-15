@@ -53,6 +53,16 @@
                 </div>
 
                 <div class="form-group">
+                    <label>Payment Method (demo)</label>
+                    <div class="method-tabs" id="depMethods">
+                        <button type="button" class="method-tab active" data-method="Bank Transfer"><b>🏦</b>Bank Transfer</button>
+                        <button type="button" class="method-tab" data-method="Crypto (USDT)"><b>₮</b>Crypto (USDT)</button>
+                        <button type="button" class="method-tab" data-method="Mobile Wallet"><b>📱</b>Mobile Wallet</button>
+                    </div>
+                    <p class="form-hint">Demo only. No real account or wallet is needed and no real money moves.</p>
+                </div>
+
+                <div class="form-group">
                     <label for="depositAmount">Deposit Amount (virtual USD)</label>
                     <div class="amount-wrap">
                         <span>$</span>
@@ -102,9 +112,24 @@
 
     function $(id) { return document.getElementById(id); }
 
+    
+    function bindMethods(boxId) {
+        var box = document.getElementById(boxId), cur = "Bank Transfer";
+        box.addEventListener("click", function (e) {
+            var b = e.target.closest(".method-tab");
+            if (!b) return;
+            box.querySelectorAll(".method-tab").forEach(function (x) { x.classList.remove("active"); });
+            b.classList.add("active");
+            cur = b.getAttribute("data-method");
+        });
+        return function () { return cur; };
+    }
+
     function money(n) {
         return "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 });
     }
+
+    var getMethod = bindMethods("depMethods");
 
     IPReady.then(async function (ctx) {
 
@@ -167,7 +192,7 @@
             var r = await ctx.sb.rpc("request_deposit", {
                 p_plan: plan.id,
                 p_amount: amount,
-                p_note: $("depositNote").value.trim() || null
+                p_note: "[" + getMethod() + "] " + $("depositNote").value.trim()
             });
 
             if (r.error) {
