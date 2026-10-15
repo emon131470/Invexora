@@ -19,8 +19,8 @@
 
     // Leave these two as they are to use LOCAL MODE.
     // Paste your real values (Supabase > Project Settings > API) for SUPABASE MODE.
-    var SUPABASE_URL      = "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE";
-    var SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_PUBLIC_KEY_HERE";
+    var SUPABASE_URL      = "https://qfrjxdrfuddvqbowgzfy.supabase.co";
+    var SUPABASE_ANON_KEY = "sb_publishable_dN--YH5u1dHimzmJld2vww_wndNdluw";
 
     // LOCAL MODE only: these emails become admin when they register.
     // (The very first account that registers is always admin.)
