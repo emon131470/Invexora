@@ -623,21 +623,21 @@
             ".demo-banner{background:#fdf1d8;color:#8a5a0a;text-align:center;padding:8px 14px;font:600 12px/1.4 'Inter','Segoe UI',Arial,sans-serif;letter-spacing:.3px;border-bottom:1px solid rgba(168,106,12,.25)}" +
             ".setup-banner{background:#fde8e8;color:#b02a2a;text-align:center;padding:12px 14px;font:600 13px/1.5 'Inter','Segoe UI',Arial,sans-serif;border-bottom:1px solid rgba(214,69,69,.3)}" +
 
-            ".otp-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,40,25,.55);backdrop-filter:blur(4px)}" +
-            ".otp-box{width:100%;max-width:420px;padding:34px 30px;background:#fff;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.35);text-align:center;font-family:var(--sans,'Inter','Segoe UI',Arial,sans-serif);color:var(--text,#10261b)}" +
-            ".otp-icon{width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:#e1f5ea;color:#178a58;display:flex;align-items:center;justify-content:center;font-size:26px}" +
+            ".otp-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(25,30,0,.55);backdrop-filter:blur(4px)}" +
+            ".otp-box{width:100%;max-width:420px;padding:34px 30px;background:#fff;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.35);text-align:center;font-family:var(--sans,'Inter','Segoe UI',Arial,sans-serif);color:var(--text,#1c2200)}" +
+            ".otp-icon{width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:#f5fbc4;color:#6b8500;display:flex;align-items:center;justify-content:center;font-size:26px}" +
             ".otp-box h2{font-family:var(--serif,Georgia,serif);font-size:26px;margin-bottom:8px;font-weight:600}" +
-            ".otp-sub{color:#4d6a5a;font-size:14px;margin-bottom:18px;line-height:1.5}" +
+            ".otp-sub{color:#5b6439;font-size:14px;margin-bottom:18px;line-height:1.5}" +
             ".otp-demo{margin-bottom:16px;padding:10px 12px;border-radius:10px;background:#fdf1d8;color:#a86a0c;font-size:13px;font-weight:600;line-height:1.5}" +
-            ".otp-input{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(18,70,45,.25);font-size:28px;font-weight:700;letter-spacing:10px;text-align:center;outline:none;font-family:inherit;color:#10261b;background:#fbfefc}" +
-            ".otp-input:focus{border-color:#178a58;box-shadow:0 0 0 3px rgba(34,165,106,.18)}" +
+            ".otp-input{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(60,70,0,.25);font-size:28px;font-weight:700;letter-spacing:10px;text-align:center;outline:none;font-family:inherit;color:#1c2200;background:#fefff4}" +
+            ".otp-input:focus{border-color:#6b8500;box-shadow:0 0 0 3px rgba(190,215,0,.18)}" +
             ".otp-msg{min-height:22px;margin:12px 0;font-size:13px;font-weight:600}" +
-            ".otp-msg.err{color:#d64545}.otp-msg.ok{color:#178a58}" +
-            ".otp-verify{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,#22a56a,#178a58);color:#fff;font-weight:600;font-size:15px;cursor:pointer;font-family:inherit}" +
+            ".otp-msg.err{color:#d64545}.otp-msg.ok{color:#6b8500}" +
+            ".otp-verify{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,#e3f23a,#bcd800);color:#1a2100;font-weight:600;font-size:15px;cursor:pointer;font-family:inherit}" +
             ".otp-verify:disabled{opacity:.5;cursor:not-allowed}" +
             ".otp-row{display:flex;justify-content:space-between;margin-top:16px}" +
-            ".otp-row button{background:none;border:none;color:#178a58;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}" +
-            ".otp-row button:disabled{color:#7b9588;cursor:not-allowed}";
+            ".otp-row button{background:none;border:none;color:#6b8500;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}" +
+            ".otp-row button:disabled{color:#8a9363;cursor:not-allowed}";
 
         var st = document.createElement("style");
         st.textContent = css;
