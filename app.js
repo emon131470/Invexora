@@ -974,11 +974,11 @@
 
     injectStyles();
 
-    addBanner(
-        useSupabase
-            ? "DEMO / SIMULATION: all balances are virtual. No real money is accepted or paid."
-            : "DEMO / SIMULATION (local mode): all balances are virtual and saved only in this browser. No real money.",
-        "demo-banner"
+   // addBanner(
+      //  useSupabase
+         //   ? "DEMO / SIMULATION: all balances are virtual. No real money is accepted or paid."
+          //  : "DEMO / SIMULATION (local mode): all balances are virtual and saved only in this browser. No real money.",
+       // "demo-banner"
     );
 
     if (needLogin) document.documentElement.style.visibility = "hidden";
