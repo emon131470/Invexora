@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plans - INVEXORA</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="header">
+        <div class="container nav-wrapper">
+            <a href="index.html" class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgNTYiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iSU5WRVhPUkEiPgogIDxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Q2ZmY0YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2I4ZjIwMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsNCkgc2NhbGUoMC43NSkiPgogICAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9InVybCgjZykiLz4KICAgIDxwYXRoIGQ9Ik0xNiA0MiBMMjggMzAgTDM2IDM3IEw1MCAyMCIgc3Ryb2tlPSIjMGEwZTE3IiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTQwIDIwIEg1MCBWMzAiIHN0cm9rZT0iIzBhMGUxNyIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8L2c+CiAgPHRleHQgeD0iNTgiIHk9IjM2IiBmb250LWZhbWlseT0iJ1NwYWNlIEdyb3Rlc2snLCAnU2Vnb2UgVUknLCBBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI3IiBmb250LXdlaWdodD0iNzAwIiBsZXR0ZXItc3BhY2luZz0iMSIgdGV4dExlbmd0aD0iMTg2IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmdBbmRHbHlwaHMiIGZpbGw9IiNmZmZmZmYiPklOVkU8dHNwYW4gZmlsbD0iI2M4ZmYxZSI+WE9SQTwvdHNwYW4+PC90ZXh0PgogIDx0ZXh0IHg9IjU5IiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcuNSIgbGV0dGVyLXNwYWNpbmc9IjMuMiIgZmlsbD0iIzdkODY5YSI+U01BUlQgSU5WRVNUTUVOVDwvdGV4dD4KPC9zdmc+Cg==" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
+            <nav class="nav-menu" id="navMenu">
+                <a href="about.html">About</a><a href="plans.html" class="active">Plans</a><a href="referral.html">Referral</a><a href="security.html">Security &amp; Risk</a><a href="faq.html">FAQ</a><a href="contact.html">Contact</a>
+            </nav>
+            <div class="nav-buttons">
+                <a href="register.html" class="btn btn-outline">Register</a>
+                <a href="login.html" class="btn btn-primary">Login</a>
+                <button class="nav-toggle" type="button" aria-label="Menu" onclick="document.getElementById('navMenu').classList.toggle('open')">☰</button>
+            </div>
+        </div>
+    </header>
+
+    <section class="page-hero">
+        <div class="container">
+            <span class="section-label">INVESTMENT PLANS</span>
+            <h1>Choose a plan that fits your goal</h1>
+            <p>Compare the simulated plans below. Rates and durations are set by the platform and shown before you submit any deposit.</p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <div class="plans-container" id="plansContainer">
+                <div class="empty-note">Loading plans...</div>
+            </div>
+            <div class="notice-bar">Simulated plans with virtual money only. Rates shown here are demo values and are not a promise of real returns.</div>
+        </div>
+    </section>
+
+    <section class="section alt">
+        <div class="container">
+            <div class="section-label">HOW A PLAN WORKS</div>
+            <h2>From deposit to daily profit</h2>
+            <div class="card-grid">
+                <div class="info-card"><h3>1. Deposit</h3><p>Choose a plan and submit an amount inside its minimum and maximum range.</p></div>
+                <div class="info-card"><h3>2. Approval</h3><p>After an admin approves the request, the plan starts and the clock begins.</p></div>
+                <div class="info-card"><h3>3. Daily profit</h3><p>Each day the plan's daily rate is credited to your balance until the plan ends.</p></div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container footer-content">
+            <div>
+                <a href="index.html" class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgNTYiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iSU5WRVhPUkEiPgogIDxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Q2ZmY0YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2I4ZjIwMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsNCkgc2NhbGUoMC43NSkiPgogICAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9InVybCgjZykiLz4KICAgIDxwYXRoIGQ9Ik0xNiA0MiBMMjggMzAgTDM2IDM3IEw1MCAyMCIgc3Ryb2tlPSIjMGEwZTE3IiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTQwIDIwIEg1MCBWMzAiIHN0cm9rZT0iIzBhMGUxNyIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8L2c+CiAgPHRleHQgeD0iNTgiIHk9IjM2IiBmb250LWZhbWlseT0iJ1NwYWNlIEdyb3Rlc2snLCAnU2Vnb2UgVUknLCBBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI3IiBmb250LXdlaWdodD0iNzAwIiBsZXR0ZXItc3BhY2luZz0iMSIgdGV4dExlbmd0aD0iMTg2IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmdBbmRHbHlwaHMiIGZpbGw9IiNmZmZmZmYiPklOVkU8dHNwYW4gZmlsbD0iI2M4ZmYxZSI+WE9SQTwvdHNwYW4+PC90ZXh0PgogIDx0ZXh0IHg9IjU5IiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcuNSIgbGV0dGVyLXNwYWNpbmc9IjMuMiIgZmlsbD0iIzdkODY5YSI+U01BUlQgSU5WRVNUTUVOVDwvdGV4dD4KPC9zdmc+Cg==" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
+                <p>Smart tools for managing your investment journey.</p>
+            </div>
+            <div class="footer-links">
+                <a href="about.html">About</a>
+                <a href="plans.html">Plans</a>
+                <a href="referral.html">Referral</a>
+                <a href="security.html">Security &amp; Risk</a>
+                <a href="faq.html">FAQ</a>
+                <a href="contact.html">Contact</a>
+                <a href="register.html">Register</a>
+                <a href="login.html">Login</a>
+            </div>
+        </div>
+        <div class="container footer-info">
+            <div class="footer-col">
+                <h4>Available Regions</h4>
+                <ul class="chip-list">
+                    <li><span class="cc">US</span> United States</li>
+                    <li><span class="cc">UK</span> United Kingdom</li>
+                    <li><span class="cc">AE</span> Dubai (UAE)</li>
+                    <li><span class="cc">IN</span> India</li>
+                    <li><span class="cc">MY</span> Malaysia</li>
+                    <li><span class="cc">PK</span> Pakistan</li>
+                    <li><span class="cc">BD</span> Bangladesh</li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Payment Methods (demo)</h4>
+                <ul class="chip-list">
+                    <li><span class="cc">🏦</span> Bank Transfer</li>
+                    <li><span class="cc">₮</span> Crypto (USDT)</li>
+                    <li><span class="cc">📱</span> Mobile Wallet</li>
+                </ul>
+            </div>
+        </div>
+        <p class="copyright">INVEXORA is a demo / simulation platform. All balances are virtual. Nothing here is financial advice.</p>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+        function money(n){return "$"+Number(n).toLocaleString("en-US",{maximumFractionDigits:2});}
+        IPReady.then(async function(ctx){
+            var box=document.getElementById("plansContainer");
+            var res=await ctx.sb.from("plans").select("*").eq("active",true).order("sort_order");
+            if(res.error||!res.data||!res.data.length){box.innerHTML='<div class="empty-note">Plans are not available right now.</div>';return;}
+            var go=ctx.session?"deposit.html?plan=":"register.html?plan=";
+            box.innerHTML=res.data.map(function(p){
+                return '<div class="plan-card'+(p.featured?' featured':'')+'">'+(p.featured?'<div class="popular">POPULAR</div>':'')+
+                '<div class="plan-name">'+esc(p.name).toUpperCase()+'</div>'+
+                '<h2>'+money(p.min_amount)+' - '+money(p.max_amount)+'</h2>'+
+                '<div class="plan-line">Minimum<strong>'+money(p.min_amount)+'</strong></div>'+
+                '<div class="plan-line">Maximum<strong>'+money(p.max_amount)+'</strong></div>'+
+                '<div class="plan-line">Duration<strong>'+p.duration_days+' Days</strong></div>'+
+                '<div class="plan-line">Simulated daily rate<strong>'+Number(p.daily_rate)+'%</strong></div>'+
+                '<div class="plan-line">Referral commission<strong>'+Number(p.referral_rate)+'%</strong></div>'+
+                '<a class="full-btn plan-btn" href="'+(ctx.session?'deposit.html?plan='+encodeURIComponent(p.id):'register.html')+'">'+(ctx.session?'Select Plan':'Register to start')+'</a></div>';
+            }).join("");
+        }).catch(function(){document.getElementById("plansContainer").innerHTML='<div class="empty-note">Could not load plans. Please refresh.</div>';});
+    </script>
+</body>
+</html>
