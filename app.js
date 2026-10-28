@@ -52,14 +52,31 @@
 
     function friendly(err) {
 
-        var m = (err && err.message) || "Something went wrong. Please try again.";
+        var raw = (err && (err.message || err.msg)) || "";
+        var code = (err && (err.code || err.error_code)) || "";
+        var m = raw || "Something went wrong. Please try again.";
+        var out;
 
-        if (/signups? not allowed|user not found|not found/i.test(m)) return "No account found with this email. Please register first.";
-        if (/rate limit|security purposes|too many|only request this after/i.test(m)) return "Too many requests. Please wait a minute and try again.";
-        if (/expired|invalid/i.test(m)) return "That code is wrong or has expired.";
-        if (/failed to fetch|network/i.test(m)) return "Network problem. Check your internet connection.";
+        if (/over_email_send_rate_limit|rate limit|security purposes|too many|only request this after/i.test(m + " " + code)) {
+            out = "Too many requests. Please wait a few minutes and try again.";
+        } else if (/signups? not allowed|user not found/i.test(m)) {
+            out = "No account found with this email. Please register first.";
+        } else if (/otp_expired|expired|token has expired|invalid/i.test(m + " " + code) && !/email address/i.test(m)) {
+            out = "That code is wrong or has expired.";
+        } else if (/failed to fetch|network/i.test(m)) {
+            out = "Network problem. Check your internet connection.";
+        } else if (/sending .*email|smtp/i.test(m)) {
+            out = "The email could not be sent. The site email settings need attention.";
+        } else {
+            out = m;
+        }
 
-        return m;
+        try { console.error("[INVEXORA auth error]", err); } catch (e) {}
+
+        // show the real reason in small brackets so problems are easy to find
+        if (raw && out !== raw) out += " [" + raw + (code ? " | " + code : "") + "]";
+
+        return out;
     }
 
     function loadScript(src) {
@@ -618,7 +635,26 @@
     /* ---------- styles for banner + OTP popup ---------- */
 
     function injectStyles() {
-;
+
+        var css =
+            ".demo-banner{background:rgba(255,196,71,.12);color:#ffc447;text-align:center;padding:8px 14px;font:600 12px/1.4 'Inter','Segoe UI',Arial,sans-serif;letter-spacing:.3px;border-bottom:1px solid rgba(255,196,71,.3)}" +
+            ".setup-banner{background:rgba(255,107,107,.12);color:#ff8a8a;text-align:center;padding:12px 14px;font:600 13px/1.5 'Inter','Segoe UI',Arial,sans-serif;border-bottom:1px solid rgba(255,107,107,.3)}" +
+
+            ".otp-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px)}" +
+            ".otp-box{width:100%;max-width:420px;padding:34px 30px;background:#111827;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center;font-family:var(--sans,'Inter','Segoe UI',Arial,sans-serif);color:var(--text,#f5f7fb)}" +
+            ".otp-icon{width:56px;height:56px;margin:0 auto 16px;border-radius:50%;background:rgba(200,255,30,.14);color:#c8ff1e;display:flex;align-items:center;justify-content:center;font-size:26px}" +
+            ".otp-box h2{font-family:var(--serif,Georgia,serif);font-size:26px;margin-bottom:8px;font-weight:600}" +
+            ".otp-sub{color:#8b94a7;font-size:14px;margin-bottom:18px;line-height:1.5}" +
+            ".otp-demo{margin-bottom:16px;padding:10px 12px;border-radius:10px;background:rgba(255,196,71,.12);color:#ffc447;font-size:13px;font-weight:600;line-height:1.5}" +
+            ".otp-input{width:100%;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);font-size:28px;font-weight:700;letter-spacing:10px;text-align:center;outline:none;font-family:inherit;color:#f5f7fb;background:#0b0f19}" +
+            ".otp-input:focus{border-color:#c8ff1e;box-shadow:0 0 0 3px rgba(200,255,30,.18)}" +
+            ".otp-msg{min-height:22px;margin:12px 0;font-size:13px;font-weight:600}" +
+            ".otp-msg.err{color:#ff6b6b}.otp-msg.ok{color:#c8ff1e}" +
+            ".otp-verify{width:100%;padding:14px;border:none;border-radius:10px;background:linear-gradient(135deg,#d2ff3a,#b8f200);color:#1a2100;font-weight:600;font-size:15px;cursor:pointer;font-family:inherit}" +
+            ".otp-verify:disabled{opacity:.5;cursor:not-allowed}" +
+            ".otp-row{display:flex;justify-content:space-between;margin-top:16px}" +
+            ".otp-row button{background:none;border:none;color:#c8ff1e;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit}" +
+            ".otp-row button:disabled{color:#5d667a;cursor:not-allowed}";
 
         var st = document.createElement("style");
         st.textContent = css;
@@ -654,7 +690,7 @@
                     '<p class="otp-sub"></p>' +
                     '<div class="otp-demo" hidden></div>' +
                     '<form class="otp-form" novalidate>' +
-                        '<input class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="------" aria-label="Verification code">' +
+                        '<input class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="------" aria-label="Verification code">' +
                         '<p class="otp-msg" role="alert"></p>' +
                         '<button type="submit" class="otp-verify">Verify</button>' +
                     '</form>' +
@@ -732,7 +768,7 @@
                 var code = input.value.trim();
 
                 if (code.length < CODE_LENGTH) {
-                    setMsg("Enter the " + CODE_LENGTH + "-digit code.", false);
+                    setMsg("Enter the code from your email (at least " + CODE_LENGTH + " digits).", false);
                     return;
                 }
 
@@ -953,8 +989,16 @@
 
     /* ---------- start ---------- */
 
-    if (needLogin) document.docum
-       entElement.style.visibility = "hidden";
+    injectStyles();
+
+    addBanner(
+        useSupabase
+            ? "DEMO / SIMULATION: all balances are virtual. No real money is accepted or paid."
+            : "DEMO / SIMULATION (local mode): all balances are virtual and saved only in this browser. No real money.",
+        "demo-banner"
+    );
+
+    if (needLogin) document.documentElement.style.visibility = "hidden";
 
     bindForms();
 
