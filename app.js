@@ -81,11 +81,20 @@
 
     function loadScript(src) {
         return new Promise(function (resolve, reject) {
+            var done = false;
             var s = document.createElement("script");
+            var t = setTimeout(function () { if (!done) { done = true; s.remove(); reject(new Error("Timed out loading " + src)); } }, 9000);
             s.src = src;
-            s.onload = resolve;
-            s.onerror = function () { reject(new Error("Could not load the Supabase library.")); };
+            s.onload = function () { if (!done) { done = true; clearTimeout(t); resolve(); } };
+            s.onerror = function () { if (!done) { done = true; clearTimeout(t); reject(new Error("Could not load the Supabase library.")); } };
             document.head.appendChild(s);
+        });
+    }
+
+    function withTimeout(promise, ms, message) {
+        return new Promise(function (resolve, reject) {
+            var t = setTimeout(function () { reject(new Error(message)); }, ms);
+            promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
         });
     }
 
@@ -827,10 +836,23 @@
             return sb;
         }
 
-        await loadScript(CDN);
+        if (!root.supabase) {
+            var urls = [CDN, "https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"];
+            var lastErr = null;
+            for (var i = 0; i < urls.length && !root.supabase; i++) {
+                try { await loadScript(urls[i]); } catch (e) { lastErr = e; }
+            }
+            if (!root.supabase) throw (lastErr || new Error("Could not load the Supabase library."));
+        }
 
         sb = root.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: false,
+                // run auth calls without the browser lock, which can freeze the page in some browsers
+                lock: async function (name, acquireTimeout, fn) { return await fn(); }
+            }
         });
 
         root.sb = sb;
@@ -852,7 +874,9 @@
                 : { ok: true, demoCode: r.data && r.data.demoCode };
         }
 
-        var first = await send();
+        var first;
+        try { first = await withTimeout(send(), 25000, "The server did not answer in time."); }
+        catch (e) { return { ok: false, error: friendly(e) }; }
         if (!first.ok) return first;
 
         var verified = await showOtpModal({
@@ -928,8 +952,10 @@
                 var btn = regForm.querySelector("button[type=submit]");
                 btn.disabled = true;
 
-                try { await root.IPReady; } catch (err) {
-                    showMsg(regForm, "Backend is not connected yet. Check app.js settings.", false);
+                showMsg(regForm, "Connecting...", true);
+
+                try { await withTimeout(root.IPReady, 20000, "timeout"); } catch (err) {
+                    showMsg(regForm, "Could not connect to the server (" + (err && err.message ? err.message : "error") + "). Check your internet and refresh the page.", false);
                     btn.disabled = false;
                     return;
                 }
@@ -965,8 +991,10 @@
                 var btn = loginForm.querySelector("button[type=submit]");
                 btn.disabled = true;
 
-                try { await root.IPReady; } catch (err) {
-                    showMsg(loginForm, "Backend is not connected yet. Check app.js settings.", false);
+                showMsg(loginForm, "Connecting...", true);
+
+                try { await withTimeout(root.IPReady, 20000, "timeout"); } catch (err) {
+                    showMsg(loginForm, "Could not connect to the server (" + (err && err.message ? err.message : "error") + "). Check your internet and refresh the page.", false);
                     btn.disabled = false;
                     return;
                 }
@@ -1038,7 +1066,11 @@
 
             // Home page: show a Dashboard button instead of Register / Login
             var nav = document.querySelector(".nav-buttons");
-            if (nav) nav.innerHTML = '<a href="dashboard.html" class="btn btn-primary">Dashboard</a>';
+            if (nav) {
+                var tg = nav.querySelector(".nav-toggle");
+                nav.innerHTML = '<a href="dashboard.html" class="btn btn-primary">Dashboard</a>';
+                if (tg) nav.appendChild(tg);
+            }
         }
 
         reveal();
