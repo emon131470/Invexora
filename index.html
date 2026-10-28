@@ -61,6 +61,29 @@
         </div>
     </section>
 
+    <section class="partners-section" id="partners">
+        <div class="container">
+            <div class="section-label">DEMO COLLABORATION</div>
+            <h2>Our Partner Network</h2>
+            <p class="section-description">Sample partners shown for demonstration only. All company names below are fictional.</p>
+
+            <div class="partner-group">
+                <h3>Investment companies</h3>
+                <div class="partner-grid"><div class="partner"><div class="p-badge">VC</div><div class="p-text"><div class="p-name">Valtora Capital</div><div class="p-tag">Investment</div></div></div><div class="partner"><div class="p-badge">BF</div><div class="p-text"><div class="p-name">Brightwell Funds</div><div class="p-tag">Investment</div></div></div><div class="partner"><div class="p-badge">CP</div><div class="p-text"><div class="p-name">Crestmore Partners</div><div class="p-tag">Investment</div></div></div><div class="partner"><div class="p-badge">AA</div><div class="p-text"><div class="p-name">Auricon Asset Mgmt</div><div class="p-tag">Investment</div></div></div></div>
+            </div>
+            <div class="partner-group">
+                <h3>Crypto currency companies</h3>
+                <div class="partner-grid"><div class="partner"><div class="p-badge">CV</div><div class="p-text"><div class="p-name">Coinvera</div><div class="p-tag">Crypto</div></div></div><div class="partner"><div class="p-badge">BH</div><div class="p-text"><div class="p-name">Blockhaven</div><div class="p-tag">Crypto</div></div></div><div class="partner"><div class="p-badge">TK</div><div class="p-text"><div class="p-name">Tokenly</div><div class="p-tag">Crypto</div></div></div><div class="partner"><div class="p-badge">NB</div><div class="p-text"><div class="p-name">Nexabit</div><div class="p-tag">Crypto</div></div></div></div>
+            </div>
+
+            <div class="demo-users">
+                <div class="du-live"><span class="dot"></span> LIVE DEMO</div>
+                <div class="du-count" id="demoUsers" data-target="35770">0</div>
+                <div class="du-label">Demo users (sample data, not real accounts)</div>
+            </div>
+        </div>
+    </section>
+
     <footer class="footer">
         <div class="container footer-content">
             <div>
@@ -104,6 +127,24 @@
     </footer>
 
     <script src="app.js"></script>
+    <script>
+        (function () {
+            var el = document.getElementById("demoUsers"); if (!el) return;
+            var target = +el.getAttribute("data-target"), started = false;
+            function run() {
+                if (started) return; started = true;
+                var t0 = performance.now(), dur = 1800;
+                (function tick(now) {
+                    var p = Math.min((now - t0) / dur, 1), e = 1 - Math.pow(1 - p, 3);
+                    el.textContent = Math.round(target * e).toLocaleString("en-US");
+                    if (p < 1) requestAnimationFrame(tick);
+                })(t0);
+            }
+            if ("IntersectionObserver" in window) {
+                new IntersectionObserver(function (en, ob) { if (en[0].isIntersecting) { run(); ob.disconnect(); } }, { threshold: 0.3 }).observe(el);
+            } else { run(); }
+        })();
+    </script>
 
 </body>
 </html>
