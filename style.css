@@ -417,3 +417,7 @@ h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
 @media (max-width: 900px) { .partner-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .partner-grid { grid-template-columns: 1fr; } .du-count { font-size: 44px; } }
 .p-text { min-width: 0; }
+
+/* two-column block with only one child -> full width */
+.two-col:has(> :only-child) { grid-template-columns: 1fr; }
+.two-col > * { min-width: 0; }
