@@ -113,10 +113,44 @@
         .settings-row label { color: var(--muted); font-size: 14px; font-weight: 500; }
 
         .small { font-size: 12px; color: var(--faint); }
+    
+        /* ---- v2 additions ---- */
+        .tabs { flex-wrap: wrap; }
+        .tab-badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: #ff4d4d; color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; }
+        .tab-badge[hidden] { display: none; }
+        .badge.Active    { background: rgba(200,255,30,0.12); color: #c8ff1e; }
+        .badge.Suspended { background: rgba(255,107,107,0.14); color: #ff6b6b; }
+        .badge.Running   { background: rgba(200,255,30,0.12); color: #c8ff1e; }
+        .badge.Completed { background: #1f2a40; color: #aab3c7; }
+        .act button.warn:hover { border-color: #ffc447; color: #ffc447; }
+        .chk { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+        .chk input { width: 17px; height: 17px; accent-color: #c8ff1e; }
+        .panel { margin-top: 22px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+        .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        .panel-head h3 { font-family: var(--serif); font-size: 20px; }
+        .mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+        .mini-stats div { padding: 14px 16px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+        .mini-stats small { display: block; color: var(--faint); font-size: 12px; }
+        .mini-stats strong { font-family: var(--serif); font-size: 20px; }
+        .sub-h { margin: 18px 0 8px; font-size: 13px; letter-spacing: 1px; color: var(--faint); font-weight: 600; }
+        .panel table { min-width: 640px; }
+        .thread { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; padding: 14px; border-radius: 12px; background: #0b0f19; border: 1px solid var(--line); }
+        .bubble { max-width: 78%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+        .bubble.user { align-self: flex-start; background: #182033; color: #f5f7fb; border-bottom-left-radius: 4px; }
+        .bubble.admin { align-self: flex-end; background: linear-gradient(135deg, #dfff3d, #c6f400); color: #0a0e17; border-bottom-right-radius: 4px; }
+        .bmeta { font-size: 11px; color: var(--faint); margin-top: 3px; }
+        .bwrap { display: flex; flex-direction: column; }
+        .bwrap.admin { align-items: flex-end; }
+        .reply-box { display: flex; gap: 10px; margin-top: 14px; }
+        .reply-box textarea { flex: 1; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--line-strong); background: #0b0f19; color: var(--text); font-family: inherit; font-size: 14px; outline: none; resize: vertical; }
+        .reply-box textarea:focus { border-color: var(--gold); }
+        .unread-dot { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #ff4d4d; color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; }
+        .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
+        @media (max-width: 900px) { .mini-stats { grid-template-columns: repeat(2, 1fr); } }
     </style>
 
 </head>
-<body>
+<body data-nochat>
 
 <!-- ================= LOGIN ================= -->
 <div class="login-wrap" id="loginView">
@@ -132,6 +166,8 @@
             <label for="adminEmail">Admin email</label>
             <input type="email" id="adminEmail" autocomplete="email" required>
         </div>
+
+        <div class="hp" aria-hidden="true" style="position:absolute;left:-9999px"><input type="text" name="website" tabindex="-1" autocomplete="off"></div>
 
         <button type="submit" class="btn" id="adminLoginBtn">Send Login Code</button>
 
@@ -161,7 +197,7 @@
 
         <div class="head">
             <h1>Dashboard</h1>
-            <p>Review deposits and withdrawals, see users and edit plans. Everything here is virtual (demo).</p>
+            <p>Review deposits and withdrawals, manage users, answer support messages and edit plans. Everything here is virtual (demo).</p>
         </div>
 
         <div class="stats">
@@ -176,7 +212,9 @@
                 <button class="tab active" data-tab="deposits">Deposits</button>
                 <button class="tab" data-tab="withdrawals">Withdrawals</button>
                 <button class="tab" data-tab="users">Users</button>
+                <button class="tab" data-tab="support">Support <span class="tab-badge" id="supportBadge" hidden>0</span></button>
                 <button class="tab" data-tab="plans">Plans</button>
+                <button class="tab" data-tab="activity">Activity</button>
             </div>
             <input type="search" class="search" id="searchBox" placeholder="Search...">
         </div>
@@ -185,9 +223,12 @@
 
         <div class="table-box" id="tableBox"></div>
 
+        <div id="detailBox"></div>
+
         <div class="settings-row" id="settingsRow" hidden>
             <label for="minWithdraw">Minimum withdrawal (USD)</label>
             <input type="number" class="cell-input" id="minWithdraw" min="0" step="0.01">
+            <label class="chk"><input type="checkbox" id="returnPrincipal"> Return the invested amount when a plan ends</label>
             <button class="btn" id="saveSettings">Save</button>
         </div>
 
@@ -202,7 +243,9 @@
 
     var ctx = null;
     var currentTab = "deposits";
-    var cache = { deposits: [], withdrawals: [], users: [], plans: [], settings: null };
+    var cache = { deposits: [], withdrawals: [], users: [], plans: [], settings: null, threads: [], audit: [] };
+    var openUser = null;        // user id of the open support thread
+    var threadTimer = null;
 
     function $(id) { return document.getElementById(id); }
 
@@ -220,9 +263,19 @@
         return isNaN(x) ? "-" : x.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
     }
 
+    function fmtTime(d) {
+        var x = new Date(d);
+        return isNaN(x) ? "-" : x.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    }
+
     function cap(s) {
         s = String(s || "");
         return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function cut(s, n) {
+        s = String(s == null ? "" : s);
+        return s.length > n ? s.slice(0, n) + "..." : s;
     }
 
     function toast(text, ok) {
@@ -234,6 +287,10 @@
         if (!p) return "<span class='muted'>-</span>";
         var name = ((p.first_name || "") + " " + (p.last_name || "")).trim();
         return esc(name || p.email) + "<div class='small'>" + esc(p.email) + "</div>";
+    }
+
+    function nameOf(u) {
+        return u ? (((u.first_name || "") + " " + (u.last_name || "")).trim() || u.email) : "-";
     }
 
 
@@ -249,6 +306,8 @@
         $("panelView").hidden = false;
         $("adminName").textContent = ctx.profile ? ctx.profile.email : "";
         await refresh();
+        clearInterval(window._pollTimer);
+        window._pollTimer = setInterval(function () { if (!document.hidden) pollSupport(); }, 20000);
     }
 
     async function isAdminNow() {
@@ -266,6 +325,9 @@
     $("adminLoginForm").addEventListener("submit", async function (e) {
 
         e.preventDefault();
+
+        var hp = $("adminLoginForm").querySelector('input[name="website"]');
+        if (hp && hp.value) return;
 
         var btn = $("adminLoginBtn");
         btn.disabled = true;
@@ -291,6 +353,8 @@
     });
 
     $("logoutBtn").addEventListener("click", async function () {
+        clearInterval(window._pollTimer);
+        clearInterval(threadTimer);
         await ctx.sb.auth.signOut();
         showLogin();
     });
@@ -306,6 +370,20 @@
         $("statDeposits").textContent    = r.data.pending_deposits;
         $("statWithdrawals").textContent = r.data.pending_withdrawals;
         $("statAmount").textContent      = money(r.data.approved_deposits);
+    }
+
+    async function loadThreads() {
+
+        var r = await ctx.sb.rpc("admin_support_threads");
+        if (r.error) return r;
+
+        cache.threads = r.data || [];
+
+        var unread = cache.threads.reduce(function (s, t) { return s + Number(t.t_unread || 0); }, 0);
+        $("supportBadge").textContent = unread > 99 ? "99+" : unread;
+        $("supportBadge").hidden = unread < 1;
+
+        return r;
     }
 
     async function loadTab() {
@@ -336,15 +414,40 @@
             if (!r.error) cache.plans = r.data;
 
             var st = await sb.from("settings").select("*").eq("id", 1).maybeSingle();
-            if (st.data) { cache.settings = st.data; $("minWithdraw").value = st.data.min_withdraw; }
+            if (st.data) {
+                cache.settings = st.data;
+                $("minWithdraw").value = st.data.min_withdraw;
+                $("returnPrincipal").checked = !!st.data.return_principal;
+            }
+        }
+
+        if (currentTab === "support") {
+            r = await loadThreads();
+        }
+
+        if (currentTab === "activity") {
+            if (!cache.users.length) {
+                var u = await sb.from("profiles").select("*");
+                if (!u.error) cache.users = u.data;
+            }
+            r = await sb.from("audit_log").select("*").order("id", { ascending: false }).limit(200);
+            if (!r.error) cache.audit = r.data;
         }
 
         if (r && r.error) toast("Could not load data: " + r.error.message, false);
     }
 
     async function refresh() {
-        await Promise.all([loadStats(), loadTab()]);
+        await Promise.all([loadStats(), loadTab(), currentTab === "support" ? Promise.resolve() : loadThreads()]);
         render();
+    }
+
+    async function pollSupport() {
+        await loadThreads();
+        if (currentTab === "support") {
+            renderSupport();
+            if (openUser) await loadThread(openUser, true);
+        }
     }
 
 
@@ -359,6 +462,8 @@
         if (currentTab === "withdrawals") renderWithdrawals(q);
         if (currentTab === "users")       renderUsers(q);
         if (currentTab === "plans")       renderPlans();
+        if (currentTab === "support")     renderSupport(q);
+        if (currentTab === "activity")    renderActivity(q);
     }
 
     function matches(obj, q) {
@@ -378,7 +483,7 @@
 
         if (!rows.length) { $("tableBox").innerHTML = '<div class="empty">No deposit requests.</div>'; return; }
 
-        var html = "<table><thead><tr><th>DATE</th><th>USER</th><th>PLAN</th><th>AMOUNT</th><th>NOTE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>";
+        var html = "<table><thead><tr><th>DATE</th><th>USER</th><th>PLAN</th><th>AMOUNT</th><th>METHOD</th><th>NOTE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>";
 
         rows.forEach(function (d) {
             var st = cap(d.status);
@@ -387,6 +492,7 @@
                 "<td>" + userLabel(d.profiles) + "</td>" +
                 "<td>" + esc(d.plans ? d.plans.name : d.plan_id) + "</td>" +
                 "<td><b>" + money(d.amount) + "</b></td>" +
+                "<td class='muted'>" + esc(d.payment_method || "-") + "</td>" +
                 "<td class='muted'>" + esc(d.note || "-") + "</td>" +
                 "<td><span class='badge " + st + "'>" + st + "</span></td>" +
                 "<td>" + (d.status === "pending" ? actionButtons("deposit", d.id) : "<span class='small'>Reviewed</span>") + "</td>" +
@@ -402,7 +508,7 @@
 
         if (!rows.length) { $("tableBox").innerHTML = '<div class="empty">No withdrawal requests.</div>'; return; }
 
-        var html = "<table><thead><tr><th>DATE</th><th>USER</th><th>AMOUNT</th><th>NOTE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>";
+        var html = "<table><thead><tr><th>DATE</th><th>USER</th><th>AMOUNT</th><th>METHOD</th><th>NOTE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>";
 
         rows.forEach(function (w) {
             var st = cap(w.status);
@@ -410,6 +516,7 @@
                 "<td class='muted'>" + fmtDate(w.created_at) + "</td>" +
                 "<td>" + userLabel(w.profiles) + "</td>" +
                 "<td><b>" + money(w.amount) + "</b></td>" +
+                "<td class='muted'>" + esc(w.payment_method || "-") + "</td>" +
                 "<td class='muted'>" + esc(w.note || "-") + "</td>" +
                 "<td><span class='badge " + st + "'>" + st + "</span></td>" +
                 "<td>" + (w.status === "pending" ? actionButtons("withdrawal", w.id) : "<span class='small'>Reviewed</span>") + "</td>" +
@@ -428,18 +535,29 @@
 
         if (!rows.length) { $("tableBox").innerHTML = '<div class="empty">No users.</div>'; return; }
 
-        var html = "<table><thead><tr><th>NAME</th><th>EMAIL</th><th>PHONE</th><th>REFERRAL CODE</th><th>REFERRED BY</th><th>ROLE</th><th>JOINED</th></tr></thead><tbody>";
+        var html = "<table><thead><tr><th>NAME</th><th>EMAIL</th><th>PHONE</th><th>REFERRAL CODE</th><th>REFERRED BY</th><th>ROLE</th><th>STATUS</th><th>JOINED</th><th>ACTION</th></tr></thead><tbody>";
 
         rows.forEach(function (u) {
             var ref = u.referred_by && byId[u.referred_by] ? byId[u.referred_by].email : "-";
+            var st  = u.suspended ? "Suspended" : "Active";
+            var act = "<div class='act'><button data-user-detail='" + esc(u.id) + "'>Details</button>";
+
+            if (u.role !== "admin") {
+                act += u.suspended
+                    ? "<button class='ok' data-suspend='" + esc(u.id) + "' data-to='false'>Unsuspend</button>"
+                    : "<button class='warn' data-suspend='" + esc(u.id) + "' data-to='true'>Suspend</button>";
+            }
+
             html += "<tr>" +
-                "<td>" + esc(((u.first_name || "") + " " + (u.last_name || "")).trim() || "-") + "</td>" +
+                "<td>" + esc(nameOf(u) === u.email ? "-" : nameOf(u)) + "</td>" +
                 "<td class='muted'>" + esc(u.email) + "</td>" +
                 "<td class='muted'>" + esc(u.phone || "-") + "</td>" +
                 "<td><b>" + esc(u.referral_code) + "</b></td>" +
                 "<td class='muted'>" + esc(ref) + "</td>" +
                 "<td class='muted'>" + esc(u.role) + "</td>" +
+                "<td><span class='badge " + st + "'>" + st + "</span></td>" +
                 "<td class='muted'>" + fmtDate(u.created_at) + "</td>" +
+                "<td>" + act + "</div></td>" +
                 "</tr>";
         });
 
@@ -470,6 +588,187 @@
     }
 
 
+    /* ----- user details ----- */
+    async function showUserDetail(id) {
+
+        var u = cache.users.filter(function (x) { return x.id === id; })[0];
+        $("detailBox").innerHTML = '<div class="panel"><div class="empty">Loading...</div></div>';
+
+        var sb = ctx.sb;
+        var r = await Promise.all([
+            sb.rpc("admin_user_summary", { p_user: id }),
+            sb.from("investments").select("*, plans(name)").eq("user_id", id).order("start_date", { ascending: false }),
+            sb.from("deposits").select("*, plans(name)").eq("user_id", id).order("created_at", { ascending: false }),
+            sb.from("withdrawals").select("*").eq("user_id", id).order("created_at", { ascending: false })
+        ]);
+
+        var bad = r.filter(function (x) { return x.error; })[0];
+        if (bad) { $("detailBox").innerHTML = '<div class="panel"><div class="empty">Could not load: ' + esc(bad.error.message) + '</div></div>'; return; }
+
+        var s = r[0].data, inv = r[1].data, dep = r[2].data, wd = r[3].data;
+
+        var html = '<div class="panel"><div class="panel-head"><h3>' + esc(nameOf(u)) + ' <span class="small">' + esc(u ? u.email : "") + '</span></h3>' +
+            '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div>' +
+            '<div class="mini-stats">' +
+              '<div><small>Available balance</small><strong>' + money(s.available) + '</strong></div>' +
+              '<div><small>Active investment</small><strong>' + money(s.active) + '</strong></div>' +
+              '<div><small>Total profit</small><strong>' + money(s.profit) + '</strong></div>' +
+              '<div><small>Referral bonus</small><strong>' + money(s.referral) + '</strong></div>' +
+              '<div><small>Total deposited</small><strong>' + money(s.deposited) + '</strong></div>' +
+              '<div><small>Withdrawn</small><strong>' + money(s.withdrawn) + '</strong></div>' +
+              '<div><small>Pending withdrawal</small><strong>' + money(s.pending_wd) + '</strong></div>' +
+              '<div><small>Status</small><strong>' + (u && u.suspended ? "Suspended" : "Active") + '</strong></div>' +
+            '</div>';
+
+        html += '<div class="sub-h">INVESTMENTS</div>';
+        if (!inv.length) html += '<div class="empty">No investments.</div>';
+        else {
+            html += '<div class="table-box"><table><thead><tr><th>STARTED</th><th>PLAN</th><th>AMOUNT</th><th>DAILY %</th><th>DAYS</th><th>STATUS</th></tr></thead><tbody>';
+            inv.forEach(function (i) {
+                var st = i.status === "completed" ? "Completed" : "Running";
+                html += '<tr><td class="muted">' + fmtDate(i.start_date) + '</td><td>' + esc(i.plans ? i.plans.name : i.plan_id) + '</td><td><b>' + money(i.amount) +
+                        '</b></td><td class="muted">' + Number(i.daily_rate) + '%</td><td class="muted">' + i.duration_days + '</td><td><span class="badge ' + st + '">' + st + '</span></td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        html += '<div class="sub-h">DEPOSITS</div>';
+        if (!dep.length) html += '<div class="empty">No deposits.</div>';
+        else {
+            html += '<div class="table-box"><table><thead><tr><th>DATE</th><th>PLAN</th><th>AMOUNT</th><th>METHOD</th><th>STATUS</th></tr></thead><tbody>';
+            dep.forEach(function (d) {
+                var st = cap(d.status);
+                html += '<tr><td class="muted">' + fmtDate(d.created_at) + '</td><td>' + esc(d.plans ? d.plans.name : d.plan_id) + '</td><td><b>' + money(d.amount) +
+                        '</b></td><td class="muted">' + esc(d.payment_method || "-") + '</td><td><span class="badge ' + st + '">' + st + '</span></td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        html += '<div class="sub-h">WITHDRAWALS</div>';
+        if (!wd.length) html += '<div class="empty">No withdrawals.</div>';
+        else {
+            html += '<div class="table-box"><table><thead><tr><th>DATE</th><th>AMOUNT</th><th>METHOD</th><th>STATUS</th></tr></thead><tbody>';
+            wd.forEach(function (w) {
+                var st = cap(w.status);
+                html += '<tr><td class="muted">' + fmtDate(w.created_at) + '</td><td><b>' + money(w.amount) + '</b></td><td class="muted">' +
+                        esc(w.payment_method || "-") + '</td><td><span class="badge ' + st + '">' + st + '</span></td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        $("detailBox").innerHTML = html + '</div>';
+        $("detailBox").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+
+    /* ----- support ----- */
+    function renderSupport(q) {
+
+        q = q == null ? $("searchBox").value.trim().toLowerCase() : q;
+
+        var rows = cache.threads.filter(function (t) { return matches(t, q); });
+
+        if (!rows.length) { $("tableBox").innerHTML = '<div class="empty">No support messages yet.</div>'; return; }
+
+        var html = "<table style='min-width:760px'><thead><tr><th>USER</th><th>LAST MESSAGE</th><th>WHEN</th><th>NEW</th><th>ACTION</th></tr></thead><tbody>";
+
+        rows.forEach(function (t) {
+            html += "<tr>" +
+                "<td>" + esc(t.t_name || t.t_email) + "<div class='small'>" + esc(t.t_email) + "</div></td>" +
+                "<td class='muted'>" + (t.t_sender === "admin" ? "<span class='small'>You: </span>" : "") + esc(cut(t.t_last, 90)) + "</td>" +
+                "<td class='muted'>" + fmtTime(t.t_at) + "</td>" +
+                "<td>" + (Number(t.t_unread) > 0 ? "<span class='unread-dot'>" + Number(t.t_unread) + "</span>" : "<span class='small'>-</span>") + "</td>" +
+                "<td><div class='act'><button class='ok' data-open-thread='" + esc(t.t_user_id) + "'>Open</button></div></td>" +
+                "</tr>";
+        });
+
+        $("tableBox").innerHTML = html + "</tbody></table>";
+    }
+
+    async function loadThread(userId, silent) {
+
+        var r = await ctx.sb.from("support_messages").select("*").eq("user_id", userId).order("id", { ascending: true });
+
+        if (r.error) { if (!silent) toast(r.error.message, false); return; }
+
+        openUser = userId;
+
+        var t = cache.threads.filter(function (x) { return x.t_user_id === userId; })[0];
+        var u = cache.users.filter(function (x) { return x.id === userId; })[0];
+        var who = t ? (t.t_name || t.t_email) : nameOf(u);
+        var mail = t ? t.t_email : (u ? u.email : "");
+
+        var box = $("detailBox");
+        var keep = box.querySelector("textarea") ? box.querySelector("textarea").value : "";
+        var wasBottom = true;
+        var old = box.querySelector(".thread");
+        if (old) wasBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 60;
+
+        var html = '<div class="panel"><div class="panel-head"><h3>' + esc(who) + ' <span class="small">' + esc(mail) + '</span></h3>' +
+            '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div><div class="thread">';
+
+        r.data.forEach(function (m) {
+            var mine = m.sender === "admin";
+            html += '<div class="bwrap ' + (mine ? "admin" : "user") + '"><div class="bubble ' + (mine ? "admin" : "user") + '">' + esc(m.body) +
+                    '</div><div class="bmeta">' + (mine ? "Support team" : esc(who)) + ' · ' + fmtTime(m.created_at) + '</div></div>';
+        });
+
+        html += '</div><form class="reply-box" id="replyForm"><textarea rows="2" maxlength="1000" placeholder="Write a reply or the solution..."></textarea>' +
+                '<button type="submit" class="btn" id="replyBtn">Send reply</button></form></div>';
+
+        box.innerHTML = html;
+        box.querySelector("textarea").value = keep;
+
+        var th = box.querySelector(".thread");
+        if (wasBottom) th.scrollTop = th.scrollHeight;
+
+        if (!silent) box.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        var hasNew = r.data.some(function (m) { return m.sender === "user" && !m.read_by_admin; });
+        if (hasNew) {
+            await ctx.sb.rpc("admin_mark_support_read", { p_user: userId });
+            await loadThreads();
+            if (currentTab === "support") renderSupport();
+        }
+    }
+
+
+    /* ----- activity log ----- */
+    var ACTION_LABELS = {
+        deposit_approved: "Deposit approved", deposit_rejected: "Deposit rejected",
+        withdrawal_approved: "Withdrawal approved", withdrawal_rejected: "Withdrawal rejected",
+        plan_updated: "Plan updated", settings_min_withdraw: "Minimum withdrawal changed",
+        settings_return_principal: "Return-principal setting changed",
+        user_suspended: "User suspended", user_unsuspended: "User unsuspended", support_reply: "Support reply sent"
+    };
+
+    function renderActivity(q) {
+
+        var byId = {};
+        cache.users.forEach(function (u) { byId[u.id] = u; });
+
+        var rows = cache.audit.filter(function (a) { return matches(a, q); });
+
+        if (!rows.length) { $("tableBox").innerHTML = '<div class="empty">No activity recorded yet.</div>'; return; }
+
+        var html = "<table style='min-width:860px'><thead><tr><th>WHEN</th><th>ADMIN</th><th>ACTION</th><th>TARGET</th><th>DETAILS</th></tr></thead><tbody>";
+
+        rows.forEach(function (a) {
+            var d = a.details || {};
+            var who = d.user_id && byId[d.user_id] ? " &middot; " + esc(byId[d.user_id].email) : (d.email ? " &middot; " + esc(d.email) : "");
+            html += "<tr>" +
+                "<td class='muted'>" + fmtTime(a.created_at) + "</td>" +
+                "<td class='muted'>" + esc(a.admin_id && byId[a.admin_id] ? byId[a.admin_id].email : "-") + "</td>" +
+                "<td><b>" + esc(ACTION_LABELS[a.action] || a.action) + "</b></td>" +
+                "<td class='muted'>" + esc(a.target_table || "-") + who + "</td>" +
+                "<td class='code'>" + esc(cut(JSON.stringify(a.details || {}), 120)) + "</td>" +
+                "</tr>";
+        });
+
+        $("tableBox").innerHTML = html + "</tbody></table>";
+    }
+
+
     /* ===== EVENTS ===== */
     document.querySelectorAll(".tab").forEach(function (btn) {
         btn.addEventListener("click", async function () {
@@ -477,6 +776,8 @@
             btn.classList.add("active");
             currentTab = btn.getAttribute("data-tab");
             $("searchBox").value = "";
+            $("detailBox").innerHTML = "";
+            openUser = null;
             toast("");
             $("tableBox").innerHTML = '<div class="empty">Loading...</div>';
             await loadTab();
@@ -485,6 +786,35 @@
     });
 
     $("searchBox").addEventListener("input", render);
+
+    $("detailBox").addEventListener("click", function (e) {
+        if (e.target.closest("[data-close-detail]")) { $("detailBox").innerHTML = ""; openUser = null; }
+    });
+
+    $("detailBox").addEventListener("submit", async function (e) {
+
+        if (e.target.id !== "replyForm") return;
+        e.preventDefault();
+
+        var ta = e.target.querySelector("textarea");
+        var text = ta.value.trim();
+        if (!text || !openUser) return;
+
+        var btn = $("replyBtn");
+        btn.disabled = true;
+
+        var r = await ctx.sb.rpc("admin_reply_support", { p_user: openUser, p_body: text });
+
+        btn.disabled = false;
+
+        if (r.error) { toast(r.error.message, false); return; }
+
+        ta.value = "";
+        toast("Reply sent.", true);
+        await loadThreads();
+        if (currentTab === "support") renderSupport();
+        await loadThread(openUser, true);
+    });
 
     $("tableBox").addEventListener("click", async function (e) {
 
@@ -512,6 +842,34 @@
             return;
         }
 
+        // user details
+        var dt = e.target.closest("button[data-user-detail]");
+        if (dt) { showUserDetail(dt.getAttribute("data-user-detail")); return; }
+
+        // suspend / unsuspend
+        var sp = e.target.closest("button[data-suspend]");
+        if (sp) {
+
+            var to = sp.getAttribute("data-to") === "true";
+
+            if (!confirm(to ? "Suspend this user? They will not be able to deposit or withdraw." : "Unsuspend this user?")) return;
+
+            sp.disabled = true;
+
+            var rs = await ctx.sb.rpc("admin_set_suspended", { p_user: sp.getAttribute("data-suspend"), p_suspended: to });
+
+            if (rs.error) { toast(rs.error.message, false); sp.disabled = false; return; }
+
+            toast(to ? "User suspended." : "User unsuspended.", true);
+            await loadTab();
+            render();
+            return;
+        }
+
+        // open a support conversation
+        var ot = e.target.closest("button[data-open-thread]");
+        if (ot) { loadThread(ot.getAttribute("data-open-thread")); return; }
+
         // save plan
         var s = e.target.closest("button[data-save-plan]");
 
@@ -536,9 +894,13 @@
 
     $("saveSettings").addEventListener("click", async function () {
 
-        var r = await ctx.sb.rpc("admin_update_settings", { p_min_withdraw: parseFloat($("minWithdraw").value) });
+        var r1 = await ctx.sb.rpc("admin_update_settings", { p_min_withdraw: parseFloat($("minWithdraw").value) });
 
-        toast(r.error ? r.error.message : "Settings saved.", !r.error);
+        if (r1.error) { toast(r1.error.message, false); return; }
+
+        var r2 = await ctx.sb.rpc("admin_set_return_principal", { p_value: $("returnPrincipal").checked });
+
+        toast(r2.error ? r2.error.message : "Settings saved.", !r2.error);
     });
 
 
