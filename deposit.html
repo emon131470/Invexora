@@ -192,7 +192,8 @@
             var r = await ctx.sb.rpc("request_deposit", {
                 p_plan: plan.id,
                 p_amount: amount,
-                p_note: "[" + getMethod() + "] " + $("depositNote").value.trim()
+                p_note: $("depositNote").value.trim() || null,
+                p_method: getMethod()
             });
 
             if (r.error) {
