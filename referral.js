@@ -1,260 +1,125 @@
-/* =====================================================
-   INVESTPRO REFERRAL SYSTEM
-   - every user gets a unique referral code (made from their email)
-   - when a referred user buys a plan and the admin approves it,
-     the referrer earns a commission % based on that plan
-   ===================================================== */
-
-var IPRef = (function () {
-
-    "use strict";
-
-    /* ---------- SETTINGS: CHANGE THESE ---------- */
-
-    // Referral commission (% of the deposit amount) for each plan
-    var REF_RATES = {
-        Starter: 5,
-        Silver:  6,
-        Gold:    8,
-        Diamond: 10
-    };
-
-    /* -------------------------------------------- */
-
-    var REFS_KEY = "investpro_refs";
-    var DEP_KEY  = "investpro_deposits";
-    var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-
-    function lower(s) { return String(s == null ? "" : s).trim().toLowerCase(); }
-
-    function read(key, store) {
-        try { return JSON.parse((store || localStorage).getItem(key)); } catch (e) { return null; }
-    }
-
-    function nameOf(u) {
-        return u.name || [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username || u.email || "";
-    }
-
-    /* ----- unique code from email ----- */
-    function codeFor(email) {
-
-        var s = lower(email);
-        if (!s) return "";
-
-        var h1 = 2166136261, h2 = 5381;
-
-        for (var i = 0; i < s.length; i++) {
-            var c = s.charCodeAt(i);
-            h1 ^= c;
-            h1 = Math.imul(h1, 16777619);
-            h2 = (Math.imul(h2, 33) ^ c);
-        }
-
-        var n = (h1 >>> 0) * 65536 + ((h2 >>> 0) & 65535);
-        var t = n.toString(36).toUpperCase();
-        while (t.length < 6) t = "0" + t;
-
-        return "IP" + t.slice(-6);
-    }
-
-    /* ----- stored data ----- */
-    function allRefs() {
-        var r = read(REFS_KEY);
-        return (r && typeof r === "object" && !Array.isArray(r)) ? r : {};
-    }
-
-    function saveRefs(r) {
-        try { localStorage.setItem(REFS_KEY, JSON.stringify(r)); } catch (e) {}
-    }
-
-    // Registered user records saved by the website (arrays or objects of users)
-    function userRecords() {
-
-        var out = [];
-
-        for (var i = 0; i < localStorage.length; i++) {
-
-            var key = localStorage.key(i);
-            if (key === DEP_KEY || key === REFS_KEY) continue;
-
-            var val = read(key);
-            var items = null;
-
-            if (Array.isArray(val)) {
-                items = val;
-            } else if (val && typeof val === "object") {
-                var vals = Object.keys(val).map(function (k) { return val[k]; });
-                if (vals.length && vals.every(function (x) { return x && typeof x === "object"; })) items = vals;
-            }
-
-            if (!items) continue;
-
-            items.forEach(function (u) {
-                if (u && typeof u === "object" && u.email) out.push(u);
-            });
-        }
-
-        return out;
-    }
-
-    function findUser(email) {
-        var e = lower(email);
-        var list = userRecords();
-        for (var i = 0; i < list.length; i++) {
-            if (lower(list[i].email) === e) return list[i];
-        }
-        return null;
-    }
-
-    function knownEmails() {
-
-        var seen = {}, list = [];
-
-        function add(e) {
-            e = lower(e);
-            if (EMAIL_RE.test(e) && !seen[e]) { seen[e] = 1; list.push(e); }
-        }
-
-        userRecords().forEach(function (u) { add(u.email); });
-        Object.keys(allRefs()).forEach(add);
-
-        (read(DEP_KEY) || []).forEach(function (d) { add(d.user); add(d.refBy); });
-
-        var me = currentUser();
-        if (me) add(me.email);
-
-        return list;
-    }
-
-    /* ----- code -> email ----- */
-    function resolveCode(code) {
-
-        var c = String(code || "").trim().toUpperCase();
-        if (!c) return "";
-
-        var emails = knownEmails();
-
-        for (var i = 0; i < emails.length; i++) {
-            if (codeFor(emails[i]) === c) return emails[i];
-        }
-
-        return "";
-    }
-
-    /* ----- which code did this user sign up with? ----- */
-    function usedCodeOf(email) {
-
-        var r = allRefs()[lower(email)];
-        if (r && r.code) return String(r.code).toUpperCase();
-
-        var u = findUser(email);
-        if (u) {
-            var c = u.referral || u.referralCode || u.refCode || u.ref || "";
-            if (c) return String(c).trim().toUpperCase();
-        }
-
-        return "";
-    }
-
-    function referrerOf(email) {
-
-        var e = lower(email);
-        if (!e) return "";
-
-        var ref = resolveCode(usedCodeOf(e));
-
-        return (ref && ref !== e) ? ref : "";
-    }
-
-    /* ----- called when someone registers ----- */
-    function rememberReferral(email, code, name) {
-
-        var e = lower(email);
-        if (!EMAIL_RE.test(e)) return;
-
-        var refs = allRefs();
-        if (refs[e]) return;
-
-        refs[e] = {
-            code: String(code || "").trim().toUpperCase(),
-            name: name || "",
-            date: new Date().toISOString()
-        };
-
-        saveRefs(refs);
-    }
-
-    /* ----- who is logged in right now? ----- */
-    function currentUser() {
-
-        // the website's own login session (set by app.js)
-        var sess = localStorage.getItem("investpro_session");
-
-        if (sess) {
-            var su = findUser(sess);
-            if (su) return { email: lower(su.email), name: nameOf(su) };
-        }
-
-        var best = null, bestScore = -1;
-
-        [localStorage, sessionStorage].forEach(function (store) {
-
-            for (var i = 0; i < store.length; i++) {
-
-                var key = store.key(i);
-                if (/^investpro_/i.test(key)) continue;
-
-                var raw = store.getItem(key), v = null;
-                try { v = JSON.parse(raw); } catch (e) { v = raw; }
-
-                var u = null;
-
-                if (v && typeof v === "object" && !Array.isArray(v) && typeof v.email === "string" && EMAIL_RE.test(v.email)) {
-                    u = v;
-                } else if (typeof v === "string" && EMAIL_RE.test(v) && /current|logged|session|auth|user/i.test(key)) {
-                    u = { email: v };
-                }
-
-                if (!u) continue;
-
-                var score = /current|logged|session|auth/i.test(key) ? 2 : (/user/i.test(key) ? 1 : 0);
-
-                if (score > bestScore) { best = u; bestScore = score; }
-            }
-        });
-
-        if (!best) return null;
-
-        var rec = findUser(best.email) || best;
-
-        return { email: lower(best.email), name: nameOf(rec) || nameOf(best) };
-    }
-
-    function nameFor(email) {
-        var r = allRefs()[lower(email)];
-        if (r && r.name) return r.name;
-        var u = findUser(email);
-        return u ? nameOf(u) : "";
-    }
-
-    function rate(plan) {
-        return REF_RATES[plan] || 0;
-    }
-
-    return {
-        REF_RATES: REF_RATES,
-        lower: lower,
-        codeFor: codeFor,
-        allRefs: allRefs,
-        knownEmails: knownEmails,
-        resolveCode: resolveCode,
-        usedCodeOf: usedCodeOf,
-        referrerOf: referrerOf,
-        rememberReferral: rememberReferral,
-        currentUser: currentUser,
-        nameFor: nameFor,
-        findUser: findUser,
-        rate: rate
-    };
-
-})();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Referral - INVEXORA</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="header">
+        <div class="container nav-wrapper">
+            <a href="index.html" class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgNTYiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iSU5WRVhPUkEiPgogIDxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Q2ZmY0YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2I4ZjIwMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsNCkgc2NhbGUoMC43NSkiPgogICAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9InVybCgjZykiLz4KICAgIDxwYXRoIGQ9Ik0xNiA0MiBMMjggMzAgTDM2IDM3IEw1MCAyMCIgc3Ryb2tlPSIjMGEwZTE3IiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTQwIDIwIEg1MCBWMzAiIHN0cm9rZT0iIzBhMGUxNyIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8L2c+CiAgPHRleHQgeD0iNTgiIHk9IjM2IiBmb250LWZhbWlseT0iJ1NwYWNlIEdyb3Rlc2snLCAnU2Vnb2UgVUknLCBBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI3IiBmb250LXdlaWdodD0iNzAwIiBsZXR0ZXItc3BhY2luZz0iMSIgdGV4dExlbmd0aD0iMTg2IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmdBbmRHbHlwaHMiIGZpbGw9IiNmZmZmZmYiPklOVkU8dHNwYW4gZmlsbD0iI2M4ZmYxZSI+WE9SQTwvdHNwYW4+PC90ZXh0PgogIDx0ZXh0IHg9IjU5IiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcuNSIgbGV0dGVyLXNwYWNpbmc9IjMuMiIgZmlsbD0iIzdkODY5YSI+U01BUlQgSU5WRVNUTUVOVDwvdGV4dD4KPC9zdmc+Cg==" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
+            <nav class="nav-menu" id="navMenu">
+                <a href="about.html">About</a><a href="plans.html">Plans</a><a href="referral.html" class="active">Referral</a><a href="privacy.html">Privacy Policy</a><a href="faq.html">FAQ</a><a href="contact.html">Contact</a>
+            </nav>
+            <div class="nav-buttons">
+                <a href="register.html" class="btn btn-outline">Register</a>
+                <a href="login.html" class="btn btn-primary">Login</a>
+                <button class="nav-toggle" type="button" aria-label="Menu" onclick="document.getElementById('navMenu').classList.toggle('open')">☰</button>
+            </div>
+        </div>
+    </header>
+
+    <section class="page-hero">
+        <div class="container">
+            <span class="section-label">REFERRAL PROGRAM</span>
+            <h1>Share your code, follow every referral</h1>
+            <p>Invite friends with your personal referral code. When a referred user's deposit is approved, a commission is added to your balance.</p>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <div class="section-label">HOW IT WORKS</div>
+            <h2>Three steps to your first referral</h2>
+            <div class="steps-grid">
+                <div class="step-card"><div class="step-number">01</div><h3>Get your code</h3><p>Every account has a unique referral code and link in the dashboard under Referral.</p></div>
+                <div class="step-card"><div class="step-number">02</div><h3>Friends register</h3><p>When someone registers with your code or link, they are connected to your account.</p></div>
+                <div class="step-card"><div class="step-number">03</div><h3>Commission</h3><p>After their deposit is approved, the commission for that plan is credited to you.</p></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section alt">
+        <div class="container">
+            <div class="section-label">COMMISSION RATES</div>
+            <h2>Commission by plan</h2>
+            <div class="table-box rate-table" id="rateTable"><div class="empty-note">Loading...</div></div>
+            <div class="notice-bar">Commission is calculated on the approved deposit amount of the referred user. All amounts are virtual.</div>
+        </div>
+    </section>
+
+    <section class="section">
+        <div class="container">
+            <div class="section-label">GOOD TO KNOW</div>
+            <h2>Referral rules</h2>
+            <div class="card-grid">
+                <div class="info-card"><h3>One-time per deposit</h3><p>Commission is credited once for each approved deposit of the referred user.</p></div>
+                <div class="info-card"><h3>Privacy first</h3><p>You see a masked email for each referral, never private details.</p></div>
+                <div class="info-card"><h3>Clear tracking</h3><p>Earned and pending commission are shown separately in your dashboard.</p></div>
+            </div>
+            <p class="center-cta"><a href="register.html" class="btn btn-primary btn-large">Create account &amp; get your code</a></p>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container footer-content">
+            <div>
+                <a href="index.html" class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgNTYiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iSU5WRVhPUkEiPgogIDxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Q2ZmY0YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2I4ZjIwMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsNCkgc2NhbGUoMC43NSkiPgogICAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9InVybCgjZykiLz4KICAgIDxwYXRoIGQ9Ik0xNiA0MiBMMjggMzAgTDM2IDM3IEw1MCAyMCIgc3Ryb2tlPSIjMGEwZTE3IiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTQwIDIwIEg1MCBWMzAiIHN0cm9rZT0iIzBhMGUxNyIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8L2c+CiAgPHRleHQgeD0iNTgiIHk9IjM2IiBmb250LWZhbWlseT0iJ1NwYWNlIEdyb3Rlc2snLCAnU2Vnb2UgVUknLCBBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI3IiBmb250LXdlaWdodD0iNzAwIiBsZXR0ZXItc3BhY2luZz0iMSIgdGV4dExlbmd0aD0iMTg2IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmdBbmRHbHlwaHMiIGZpbGw9IiNmZmZmZmYiPklOVkU8dHNwYW4gZmlsbD0iI2M4ZmYxZSI+WE9SQTwvdHNwYW4+PC90ZXh0PgogIDx0ZXh0IHg9IjU5IiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcuNSIgbGV0dGVyLXNwYWNpbmc9IjMuMiIgZmlsbD0iIzdkODY5YSI+U01BUlQgSU5WRVNUTUVOVDwvdGV4dD4KPC9zdmc+Cg==" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
+                <p>Smart tools for managing your investment journey.</p>
+            </div>
+            <div class="footer-links">
+                <a href="about.html">About</a>
+                <a href="plans.html">Plans</a>
+                <a href="referral.html">Referral</a>
+                <a href="security.html">Security &amp; Risk</a>
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="faq.html">FAQ</a>
+                <a href="contact.html">Contact</a>
+                <a href="register.html">Register</a>
+                <a href="login.html">Login</a>
+            </div>
+        </div>
+        <div class="container footer-info">
+            <div class="footer-col">
+                <h4>Available Regions</h4>
+                <ul class="chip-list">
+                    <li><span class="cc">US</span> United States</li>
+                    <li><span class="cc">UK</span> United Kingdom</li>
+                    <li><span class="cc">AE</span> Dubai (UAE)</li>
+                    <li><span class="cc">IN</span> India</li>
+                    <li><span class="cc">MY</span> Malaysia</li>
+                    <li><span class="cc">PK</span> Pakistan</li>
+                    <li><span class="cc">BD</span> Bangladesh</li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Payment Methods (demo)</h4>
+                <ul class="chip-list">
+                    <li><span class="cc">🏦</span> Bank Transfer</li>
+                    <li><span class="cc">₮</span> Crypto (USDT)</li>
+                    <li><span class="cc">📱</span> Mobile Wallet</li>
+                </ul>
+            </div>
+        </div>
+        <p class="copyright">INVEXORA is a demo / simulation platform. All balances are virtual. Nothing here is financial advice.</p>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+        IPReady.then(async function(ctx){
+            var box=document.getElementById("rateTable");
+            var res=await ctx.sb.from("plans").select("*").eq("active",true).order("sort_order");
+            if(res.error||!res.data||!res.data.length){box.innerHTML='<div class="empty-note">Rates are not available right now.</div>';return;}
+            var h='<table><thead><tr><th>PLAN</th><th>DEPOSIT RANGE</th><th>COMMISSION</th></tr></thead><tbody>';
+            res.data.forEach(function(p){h+='<tr><td><b>'+esc(p.name)+'</b></td><td class="muted">$'+Number(p.min_amount)+' - $'+Number(p.max_amount)+'</td><td><b>'+Number(p.referral_rate)+'%</b></td></tr>';});
+            box.innerHTML=h+'</tbody></table>';
+        }).catch(function(){document.getElementById("rateTable").innerHTML='<div class="empty-note">Could not load rates. Please refresh.</div>';});
+    </script>
+</body>
+</html>
