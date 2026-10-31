@@ -28,6 +28,8 @@
 
     <p class="form-error" id="loadError" role="alert"></p>
 
+    <div class="notice-bar" id="suspendNote" hidden>Your account is suspended, so deposits and withdrawals are paused. Please contact support using the chat button.</div>
+
     <!-- DASHBOARD MENU -->
     <nav class="dash-menu" id="dashMenu">
         <button data-view="overview" class="active">Overview</button>
@@ -405,7 +407,7 @@
         S.deps.forEach(function (d) {
             rows.push({
                 date: d.created_at, type: "Deposit",
-                info: esc(d.plans ? d.plans.name : d.plan_id) + " plan",
+                info: esc(d.plans ? d.plans.name : d.plan_id) + " plan" + (d.payment_method ? " · " + esc(d.payment_method) : ""),
                 amount: "+" + money(d.amount), status: cap(d.status)
             });
         });
@@ -413,7 +415,7 @@
         S.wds.forEach(function (w) {
             rows.push({
                 date: w.created_at, type: "Withdrawal",
-                info: esc(w.note || "-"),
+                info: (w.payment_method ? esc(w.payment_method) + (w.note ? " · " : "") : "") + esc(w.note || (w.payment_method ? "" : "-")),
                 amount: "-" + money(w.amount), status: cap(w.status)
             });
         });
@@ -587,7 +589,8 @@
 
         var r = await ctx.sb.rpc("request_withdrawal", {
             p_amount: amount,
-            p_note: "[" + getWdMethod() + "] " + $("wdNote").value.trim()
+            p_note: $("wdNote").value.trim() || null,
+            p_method: getWdMethod()
         });
 
         $("wdBtn").disabled = false;
@@ -608,6 +611,8 @@
     IPReady.then(function (c) {
 
         ctx = c;
+
+        if (ctx.profile && ctx.profile.suspended) $("suspendNote").hidden = false;
         getWdMethod = bindMethods("wdMethods");
 
         showView((location.hash || "#overview").slice(1));
