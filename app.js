@@ -26,6 +26,10 @@
     // (The very first account that registers is always admin.)
     var LOCAL_ADMIN_EMAILS = [];
 
+    // Cloudflare Turnstile (free CAPTCHA) SITE key. Leave "" to keep CAPTCHA off.
+    // Turn it on ONLY after you also enabled CAPTCHA in Supabase (see the setup guide).
+    var CAPTCHA_SITE_KEY = "";
+
     var CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
     var RESEND_SECONDS = 30;
     var CODE_LENGTH    = 6;
@@ -142,6 +146,7 @@
                 ],
                 settings: { id: 1, min_withdraw: 5, return_principal: true },
                 deposits: [], investments: [], profit_logs: [], referral_earnings: [], withdrawals: [],
+                audit_log: [], support_messages: [],
                 seq: 0
             };
         }
@@ -149,7 +154,11 @@
         function load() {
             try {
                 var d = JSON.parse(localStorage.getItem(DB_KEY));
-                if (d && d.plans && d.profiles) return d;
+                if (d && d.plans && d.profiles) {
+                    d.audit_log = d.audit_log || [];
+                    d.support_messages = d.support_messages || [];
+                    return d;
+                }
             } catch (e) {}
             return seed();
         }
@@ -218,6 +227,14 @@
 
             return added;
         }
+
+        function audit(db, action, table, id, details) {
+            var m = me(db);
+            db.audit_log.push({ id: ++db.seq, admin_id: m ? m.id : null, action: action, target_table: table,
+                                target_id: String(id), details: details || null, created_at: nowIso() });
+        }
+
+        var METHODS = ["Bank Transfer", "Crypto (USDT)", "Mobile Wallet"];
 
         function needLoginRow(db) {
             var m = me(db);
@@ -291,7 +308,9 @@
                 var m = needLoginRow(db);
                 var amount = a.p_amount;
 
+                if (m.suspended) throw new Error("Your account is suspended. Please contact support.");
                 if (amount == null || isNaN(amount)) throw new Error("Please enter an amount");
+                if (METHODS.indexOf(a.p_method) < 0) throw new Error("Please choose a payment method");
 
                 var pl = db.plans.filter(function (x) { return x.id === a.p_plan && x.active; })[0];
                 if (!pl) throw new Error("Plan not found");
@@ -305,6 +324,7 @@
 
                 var row = {
                     id: uid(), user_id: m.id, plan_id: pl.id, amount: round2(amount),
+                    payment_method: a.p_method,
                     note: a.p_note ? String(a.p_note).slice(0, 200) : null,
                     status: "pending", created_at: nowIso(), reviewed_at: null, reviewed_by: null
                 };
@@ -318,7 +338,9 @@
                 var m = needLoginRow(db);
                 var amount = a.p_amount;
 
+                if (m.suspended) throw new Error("Your account is suspended. Please contact support.");
                 if (amount == null || isNaN(amount)) throw new Error("Please enter an amount");
+                if (METHODS.indexOf(a.p_method) < 0) throw new Error("Please choose a payment method");
 
                 if (amount < db.settings.min_withdraw) throw new Error("Minimum withdrawal is " + db.settings.min_withdraw);
 
@@ -329,6 +351,7 @@
 
                 var row = {
                     id: uid(), user_id: m.id, amount: round2(amount),
+                    payment_method: a.p_method,
                     note: a.p_note ? String(a.p_note).slice(0, 200) : null,
                     status: "pending", created_at: nowIso(), reviewed_at: null, reviewed_by: null
                 };
@@ -349,7 +372,11 @@
                 d.reviewed_at = nowIso();
                 d.reviewed_by = m.id;
 
-                if (!a.p_approve) { d.status = "rejected"; return null; }
+                if (!a.p_approve) {
+                    d.status = "rejected";
+                    audit(db, "deposit_rejected", "deposits", d.id, { user_id: d.user_id, amount: d.amount, plan: d.plan_id, method: d.payment_method });
+                    return null;
+                }
 
                 var pl = db.plans.filter(function (x) { return x.id === d.plan_id; })[0];
                 d.status = "approved";
@@ -369,6 +396,7 @@
                     });
                 }
 
+                audit(db, "deposit_approved", "deposits", d.id, { user_id: d.user_id, amount: d.amount, plan: d.plan_id, method: d.payment_method });
                 return null;
             },
 
@@ -383,6 +411,8 @@
                 w.reviewed_at = nowIso();
                 w.reviewed_by = me(db).id;
 
+                audit(db, a.p_approve ? "withdrawal_approved" : "withdrawal_rejected", "withdrawals", w.id,
+                      { user_id: w.user_id, amount: w.amount, method: w.payment_method });
                 return null;
             },
 
@@ -398,13 +428,102 @@
                 p.min_amount = a.p_min; p.max_amount = a.p_max; p.duration_days = a.p_days;
                 p.daily_rate = a.p_rate; p.referral_rate = a.p_ref; p.active = !!a.p_active;
 
+                audit(db, "plan_updated", "plans", p.id, { min: a.p_min, max: a.p_max, days: a.p_days, daily_rate: a.p_rate, referral_rate: a.p_ref, active: !!a.p_active });
                 return null;
             },
 
             admin_update_settings: function (db, a) {
                 needAdmin(db);
                 db.settings.min_withdraw = a.p_min_withdraw;
+                audit(db, "settings_min_withdraw", "settings", 1, { min_withdraw: a.p_min_withdraw });
                 return null;
+            },
+
+            admin_set_return_principal: function (db, a) {
+                needAdmin(db);
+                db.settings.return_principal = (a.p_value == null) ? true : !!a.p_value;
+                audit(db, "settings_return_principal", "settings", 1, { return_principal: a.p_value });
+                return null;
+            },
+
+            admin_set_suspended: function (db, a) {
+                needAdmin(db);
+                var t = db.profiles.filter(function (p) { return p.id === a.p_user; })[0];
+                if (!t) throw new Error("User not found");
+                if (t.role === "admin") throw new Error("An admin account cannot be suspended");
+                t.suspended = !!a.p_suspended;
+                t.suspended_at = a.p_suspended ? nowIso() : null;
+                audit(db, a.p_suspended ? "user_suspended" : "user_unsuspended", "profiles", t.id, { email: t.email });
+                return null;
+            },
+
+            admin_user_summary: function (db, a) {
+                needAdmin(db);
+                accrue(db, a.p_user);
+                var id = a.p_user;
+                return {
+                    available:  balanceOf(db, id),
+                    profit:     round2(sum(db.profit_logs.filter(function (l) { return l.user_id === id; }), function (l) { return l.amount; })),
+                    referral:   round2(sum(db.referral_earnings.filter(function (r) { return r.referrer_id === id; }), function (r) { return r.amount; })),
+                    active:     round2(sum(db.investments.filter(function (i) { return i.user_id === id && i.status === "running"; }), function (i) { return i.amount; })),
+                    withdrawn:  round2(sum(db.withdrawals.filter(function (w) { return w.user_id === id && w.status === "approved"; }), function (w) { return w.amount; })),
+                    pending_wd: round2(sum(db.withdrawals.filter(function (w) { return w.user_id === id && w.status === "pending"; }), function (w) { return w.amount; })),
+                    deposited:  round2(sum(db.deposits.filter(function (d) { return d.user_id === id && d.status === "approved"; }), function (d) { return d.amount; }))
+                };
+            },
+
+            send_support_message: function (db, a) {
+                var m = needLoginRow(db);
+                var txt = String(a.p_body == null ? "" : a.p_body).trim();
+                if (txt.length < 1 || txt.length > 1000) throw new Error("Message must be between 1 and 1000 characters");
+                var recent = db.support_messages.filter(function (x) {
+                    return x.user_id === m.id && x.sender === "user" && (Date.now() - new Date(x.created_at).getTime()) < 600000;
+                }).length;
+                if (recent >= 10) throw new Error("You are sending messages too fast. Please wait a few minutes.");
+                var row = { id: ++db.seq, user_id: m.id, sender: "user", body: txt, read_by_admin: false, read_by_user: true, created_at: nowIso() };
+                db.support_messages.push(row);
+                return row.id;
+            },
+
+            mark_support_read: function (db) {
+                var m = needLoginRow(db);
+                db.support_messages.forEach(function (x) { if (x.user_id === m.id && x.sender === "admin") x.read_by_user = true; });
+                return null;
+            },
+
+            admin_reply_support: function (db, a) {
+                needAdmin(db);
+                var txt = String(a.p_body == null ? "" : a.p_body).trim();
+                if (txt.length < 1 || txt.length > 1000) throw new Error("Reply must be between 1 and 1000 characters");
+                if (!db.profiles.some(function (p) { return p.id === a.p_user; })) throw new Error("User not found");
+                var row = { id: ++db.seq, user_id: a.p_user, sender: "admin", body: txt, read_by_admin: true, read_by_user: false, created_at: nowIso() };
+                db.support_messages.push(row);
+                db.support_messages.forEach(function (x) { if (x.user_id === a.p_user && x.sender === "user") x.read_by_admin = true; });
+                audit(db, "support_reply", "support_messages", row.id, { user_id: a.p_user });
+                return row.id;
+            },
+
+            admin_mark_support_read: function (db, a) {
+                needAdmin(db);
+                db.support_messages.forEach(function (x) { if (x.user_id === a.p_user && x.sender === "user") x.read_by_admin = true; });
+                return null;
+            },
+
+            admin_support_threads: function (db) {
+                needAdmin(db);
+                var out = [];
+                db.profiles.forEach(function (p) {
+                    var msgs = db.support_messages.filter(function (x) { return x.user_id === p.id; });
+                    if (!msgs.length) return;
+                    var last = msgs[msgs.length - 1];
+                    out.push({
+                        t_user_id: p.id, t_name: ((p.first_name || "") + " " + (p.last_name || "")).trim(), t_email: p.email,
+                        t_last: last.body, t_sender: last.sender, t_at: last.created_at,
+                        t_unread: msgs.filter(function (x) { return x.sender === "user" && !x.read_by_admin; }).length
+                    });
+                });
+                out.sort(function (a, b) { return (b.t_unread - a.t_unread) || (a.t_at < b.t_at ? 1 : -1); });
+                return out;
             },
 
             admin_stats: function (db) {
@@ -481,6 +600,7 @@
         Query.prototype.order = function (c, o) { this.ord = { c: c, asc: !(o && o.ascending === false) }; return this; };
         Query.prototype.maybeSingle = function () { this.mode = "maybe"; return this; };
         Query.prototype.single = function () { this.mode = "one"; return this; };
+        Query.prototype.limit = function (n) { this.lim = n; return this; };
 
         Query.prototype.run = function () {
 
@@ -492,7 +612,8 @@
             var source = {
                 profiles: db.profiles, plans: db.plans, settings: [db.settings], deposits: db.deposits,
                 investments: db.investments, profit_logs: db.profit_logs,
-                referral_earnings: db.referral_earnings, withdrawals: db.withdrawals
+                referral_earnings: db.referral_earnings, withdrawals: db.withdrawals,
+                audit_log: db.audit_log, support_messages: db.support_messages
             }[t];
 
             if (!source) return { data: null, error: { message: "Unknown table: " + t } };
@@ -500,6 +621,7 @@
             var rows = source.filter(function (r) {
                 if (t === "plans" || t === "settings") return true;
                 if (!m) return false;
+                if (t === "audit_log") return admin;
                 if (admin) return true;
                 if (t === "profiles") return r.id === m.id;
                 if (t === "referral_earnings") return r.referrer_id === m.id;
@@ -517,6 +639,8 @@
                     return (a[c] > b[c] ? 1 : -1) * dir;
                 });
             }
+
+            if (this.lim) rows = rows.slice(0, this.lim);
 
             var sel = this.sel;
             var data = rows.map(function (r) { return project(copy(r), sel, db); });
@@ -593,6 +717,7 @@
                         referral_code: genCode(db),
                         referred_by: ref ? ref.id : null,
                         role: (first || ADMINS.indexOf(email) > -1) ? "admin" : "user",
+                        suspended: false, suspended_at: null,
                         created_at: nowIso()
                     });
                 }
@@ -860,15 +985,78 @@
     }
 
 
+    /* ---------- CAPTCHA (Cloudflare Turnstile, optional) ---------- */
+
+    var pageLoadedAt = Date.now();
+
+    function captchaToken() {
+
+        if (!CAPTCHA_SITE_KEY || !useSupabase) return Promise.resolve(undefined);
+
+        function ready() {
+            return new Promise(function (resolve, reject) {
+                if (root.turnstile) { resolve(); return; }
+                var s = document.createElement("script");
+                s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+                s.async = true;
+                s.onload = function () { resolve(); };
+                s.onerror = function () { reject(new Error("Could not load the CAPTCHA.")); };
+                document.head.appendChild(s);
+            });
+        }
+
+        return ready().then(function () {
+            return new Promise(function (resolve, reject) {
+
+                var box = document.createElement("div");
+                box.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:10001";
+                document.body.appendChild(box);
+
+                var id, done = false;
+
+                function finish(fn, val) {
+                    if (done) return;
+                    done = true;
+                    setTimeout(function () { try { root.turnstile.remove(id); } catch (e) {} box.remove(); }, 400);
+                    fn(val);
+                }
+
+                id = root.turnstile.render(box, {
+                    sitekey: CAPTCHA_SITE_KEY,
+                    appearance: "interaction-only",
+                    callback: function (t) { finish(resolve, t); },
+                    "error-callback": function () { finish(reject, new Error("CAPTCHA failed")); },
+                    "timeout-callback": function () { finish(reject, new Error("CAPTCHA timed out")); }
+                });
+
+                setTimeout(function () { finish(reject, new Error("CAPTCHA timed out")); }, 60000);
+            });
+        });
+    }
+
+    // quick bot checks: a hidden field real people never fill, and a form that is "filled" too fast
+    function botCheck(form) {
+        var hp = form.querySelector('input[name="website"]');
+        if (hp && hp.value) return "bot";
+        if (Date.now() - pageLoadedAt < 2500) return "fast";
+        return "";
+    }
+
+
     /* ---------- auth flows (used by register, login and admin pages) ---------- */
 
     async function otpFlow(email, createUser, meta) {
 
         async function send() {
-            var r = await sb.auth.signInWithOtp({
-                email: email,
-                options: createUser ? { shouldCreateUser: true, data: meta } : { shouldCreateUser: false }
-            });
+
+            var token;
+            try { token = await captchaToken(); }
+            catch (e) { return { ok: false, error: "The security check failed. Please refresh the page and try again." }; }
+
+            var opts = createUser ? { shouldCreateUser: true, data: meta } : { shouldCreateUser: false };
+            if (token) opts.captchaToken = token;
+
+            var r = await sb.auth.signInWithOtp({ email: email, options: opts });
             return r.error
                 ? { ok: false, error: friendly(r.error) }
                 : { ok: true, demoCode: r.data && r.data.demoCode };
@@ -949,6 +1137,10 @@
 
                 e.preventDefault();
 
+                var bc = botCheck(regForm);
+                if (bc === "bot") return;
+                if (bc === "fast") { showMsg(regForm, "Please wait a moment and try again.", false); return; }
+
                 var btn = regForm.querySelector("button[type=submit]");
                 btn.disabled = true;
 
@@ -988,6 +1180,10 @@
 
                 e.preventDefault();
 
+                var bc = botCheck(loginForm);
+                if (bc === "bot") return;
+                if (bc === "fast") { showMsg(loginForm, "Please wait a moment and try again.", false); return; }
+
                 var btn = loginForm.querySelector("button[type=submit]");
                 btn.disabled = true;
 
@@ -1011,6 +1207,162 @@
 
                 window.location.href = "dashboard.html";
             });
+        }
+    }
+
+
+
+    /* =====================================================
+       SUPPORT CHAT  (user writes a message, an admin replies from the admin panel)
+       ===================================================== */
+
+    function initChat(sess) {
+
+        if (document.body.hasAttribute("data-nochat") || document.body.classList.contains("auth-page")) return;
+
+        var root_ = document.createElement("div");
+        root_.className = "chat-root";
+        root_.innerHTML =
+            '<button type="button" class="chat-fab" aria-label="Open support chat">' +
+                '<span class="chat-ico">💬</span><span class="chat-badge" hidden>0</span>' +
+            '</button>' +
+            '<div class="chat-panel" hidden role="dialog" aria-label="Support chat">' +
+                '<div class="chat-head">' +
+                    '<div><strong>INVEXORA Support</strong><small>Tell us your problem. An admin will reply here.</small></div>' +
+                    '<button type="button" class="chat-close" aria-label="Close chat">×</button>' +
+                '</div>' +
+                '<div class="chat-body"></div>' +
+                '<div class="chat-topics"></div>' +
+                '<form class="chat-form" novalidate>' +
+                    '<textarea rows="2" maxlength="1000" placeholder="Describe your problem..." aria-label="Your message"></textarea>' +
+                    '<button type="submit" class="chat-send">Send</button>' +
+                '</form>' +
+                '<p class="chat-err" role="alert"></p>' +
+            '</div>';
+        document.body.appendChild(root_);
+
+        var fab    = root_.querySelector(".chat-fab");
+        var badge  = root_.querySelector(".chat-badge");
+        var panel  = root_.querySelector(".chat-panel");
+        var body   = root_.querySelector(".chat-body");
+        var topics = root_.querySelector(".chat-topics");
+        var form   = root_.querySelector(".chat-form");
+        var input  = form.querySelector("textarea");
+        var errBox = root_.querySelector(".chat-err");
+        var msgs   = [];
+        var busy   = false;
+
+        var GREETING = "Hi! 👋 Tell us about your problem (account, deposit, withdrawal, referral...). " +
+                       "Our admin team will read your message and reply right here. You will see a red dot when there is a reply.";
+
+        ["Account", "Deposit", "Withdrawal", "Referral", "Other"].forEach(function (t) {
+            var b = document.createElement("button");
+            b.type = "button"; b.className = "chat-topic"; b.textContent = t;
+            b.addEventListener("click", function () {
+                if (!input.value.trim()) input.value = "[" + t + "] ";
+                input.focus();
+            });
+            topics.appendChild(b);
+        });
+
+        function fmt(d) {
+            var x = new Date(d);
+            return isNaN(x) ? "" : x.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+        }
+
+        function render() {
+
+            var html = '<div class="chat-msg them bot"><div class="chat-bubble">' + esc(GREETING) + '</div><div class="chat-meta">INVEXORA Bot</div></div>';
+
+            if (!sess) {
+                html += '<div class="chat-msg them bot"><div class="chat-bubble">Please log in to send a message. ' +
+                        '<a href="login.html" class="chat-link">Login</a> or <a href="register.html" class="chat-link">Register</a></div></div>';
+            }
+
+            msgs.forEach(function (m) {
+                var mine = m.sender === "user";
+                html += '<div class="chat-msg ' + (mine ? "me" : "them") + '"><div class="chat-bubble">' + esc(m.body) + '</div>' +
+                        '<div class="chat-meta">' + (mine ? "You" : "Support team") + ' · ' + esc(fmt(m.created_at)) + '</div></div>';
+            });
+
+            body.innerHTML = html;
+            body.scrollTop = body.scrollHeight;
+        }
+
+        function setBadge(n) {
+            badge.textContent = n > 9 ? "9+" : String(n);
+            badge.hidden = !(n > 0) || !panel.hidden;
+        }
+
+        async function refresh() {
+
+            if (!sess || busy) return;
+
+            var r = await sb.from("support_messages").select("*").order("id", { ascending: true });
+            if (r.error || !r.data) return;
+
+            var changed = r.data.length !== msgs.length;
+            msgs = r.data;
+
+            var unread = msgs.filter(function (m) { return m.sender === "admin" && !m.read_by_user; }).length;
+            setBadge(unread);
+
+            if (!panel.hidden) {
+                if (changed || !body.innerHTML) render();
+                if (unread > 0) {
+                    await sb.rpc("mark_support_read");
+                    msgs.forEach(function (m) { if (m.sender === "admin") m.read_by_user = true; });
+                    setBadge(0);
+                }
+            }
+        }
+
+        function openPanel() {
+            panel.hidden = false;
+            badge.hidden = true;
+            if (!sess) { form.hidden = true; topics.hidden = true; }
+            render();
+            refresh();
+            if (sess) input.focus();
+        }
+
+        function closePanel() { panel.hidden = true; }
+
+        fab.addEventListener("click", function () { panel.hidden ? openPanel() : closePanel(); });
+        root_.querySelector(".chat-close").addEventListener("click", closePanel);
+
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+        });
+
+        form.addEventListener("submit", async function (e) {
+
+            e.preventDefault();
+            errBox.textContent = "";
+
+            var text = input.value.trim();
+            if (!text) return;
+            if (!sess) { errBox.textContent = "Please log in first."; return; }
+
+            busy = true;
+            form.querySelector(".chat-send").disabled = true;
+
+            var r = await sb.rpc("send_support_message", { p_body: text });
+
+            busy = false;
+            form.querySelector(".chat-send").disabled = false;
+
+            if (r.error) { errBox.textContent = r.error.message; return; }
+
+            input.value = "";
+            await refresh();
+            render();
+        });
+
+        if (sess) {
+            refresh();
+            setInterval(function () { if (!document.hidden) refresh(); }, panel.hidden ? 40000 : 10000);
+            setInterval(function () { if (!document.hidden && !panel.hidden) refresh(); }, 8000);
         }
     }
 
@@ -1074,6 +1426,8 @@
         }
 
         reveal();
+
+        try { initChat(sess); } catch (e) { try { console.error(e); } catch (x) {} }
 
         return { sb: sb, session: sess, profile: profile };
 
