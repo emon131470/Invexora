@@ -490,3 +490,27 @@ h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
 .legal ul { margin: 8px 0 8px 20px; display: grid; gap: 6px; }
 .legal .updated { color: var(--faint); font-size: 13px; margin-bottom: 8px; }
 .legal a { color: var(--accent); font-weight: 600; }
+
+/* ================= BANNERS (posted from the admin panel) ================= */
+.hero-content h1 span.plain { color: var(--text); }
+.site-banner { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 10px 46px 10px 18px; font-size: 14px; font-weight: 500; text-align: center; line-height: 1.5; }
+.site-banner.info    { background: #14243d; color: #cfe1ff; }
+.site-banner.success { background: #14301d; color: #c8ffd0; }
+.site-banner.warning { background: #3a2c0e; color: #ffd98a; }
+.site-banner.promo   { background: linear-gradient(135deg, #dfff3d, #c6f400); color: #0a0e17; font-weight: 600; }
+.sb-link { text-decoration: underline; font-weight: 700; }
+.sb-close { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 6px; border: none; background: rgba(255, 255, 255, 0.12); color: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+.sb-close:hover { background: rgba(255, 255, 255, 0.25); }
+.site-banner.promo .sb-close { background: rgba(0, 0, 0, 0.12); }
+.home-banners { padding-top: 34px; padding-bottom: 6px; }
+.home-banners:empty { display: none; }
+.home-banner { display: flex; align-items: center; gap: 24px; margin-bottom: 16px; padding: 22px 26px; border-radius: 18px; border: 1px solid var(--line-strong); background: var(--surface); }
+.home-banner.info    { background: linear-gradient(135deg, #14243d, #0f1a2e); }
+.home-banner.success { background: linear-gradient(135deg, #14301d, #0e1f14); }
+.home-banner.warning { background: linear-gradient(135deg, #3a2c0e, #261c08); }
+.home-banner.promo   { background: linear-gradient(135deg, #1d2b0a, #0e1405); border-color: rgba(200, 255, 30, 0.35); }
+.home-banner img { flex: 0 0 200px; width: 200px; height: 120px; object-fit: cover; border-radius: 12px; }
+.hb-body { flex: 1; min-width: 0; }
+.hb-body p { font-size: 18px; font-weight: 600; line-height: 1.5; margin-bottom: 12px; }
+.hb-body p:last-child { margin-bottom: 0; }
+@media (max-width: 700px) { .home-banner { flex-direction: column; align-items: flex-start; } .home-banner img { width: 100%; flex-basis: auto; height: 150px; } }
