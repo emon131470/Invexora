@@ -147,6 +147,21 @@
         .unread-dot { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #ff4d4d; color: #fff; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; }
         .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: var(--muted); word-break: break-all; }
         @media (max-width: 900px) { .mini-stats { grid-template-columns: repeat(2, 1fr); } }
+        .cms-field { margin-bottom: 14px; }
+        .cms-field label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+        .cms-field input[type=text], .cms-field input[type=url], .cms-field input[type=number], .cms-field input[type=datetime-local], .cms-field select, .cms-field textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--line-strong); background: #0b0f19; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
+        .cms-field textarea { resize: vertical; min-height: 70px; }
+        .cms-field input:focus, .cms-field select:focus, .cms-field textarea:focus { border-color: var(--gold); }
+        .cms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+        .cms-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+        .faq-row { padding: 14px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+        .faq-row .cms-field { margin-bottom: 8px; }
+        .badge.Live      { background: rgba(200,255,30,0.12); color: #c8ff1e; }
+        .badge.Scheduled { background: rgba(86,170,255,0.14); color: #7bbcff; }
+        .badge.Expired   { background: #1f2a40; color: #aab3c7; }
+        .badge.Off       { background: rgba(255,196,71,0.14); color: #ffc447; }
+        .hint { color: var(--faint); font-size: 12px; margin-top: 4px; }
+        @media (max-width: 700px) { .cms-grid { grid-template-columns: 1fr; } }
     </style>
 
 </head>
@@ -213,6 +228,8 @@
                 <button class="tab" data-tab="withdrawals">Withdrawals</button>
                 <button class="tab" data-tab="users">Users</button>
                 <button class="tab" data-tab="support">Support <span class="tab-badge" id="supportBadge" hidden>0</span></button>
+                <button class="tab" data-tab="content">Content</button>
+                <button class="tab" data-tab="banners">Banners</button>
                 <button class="tab" data-tab="plans">Plans</button>
                 <button class="tab" data-tab="activity">Activity</button>
             </div>
@@ -243,7 +260,7 @@
 
     var ctx = null;
     var currentTab = "deposits";
-    var cache = { deposits: [], withdrawals: [], users: [], plans: [], settings: null, threads: [], audit: [] };
+    var cache = { deposits: [], withdrawals: [], users: [], plans: [], settings: null, threads: [], audit: [], content: {}, banners: [] };
     var openUser = null;        // user id of the open support thread
     var threadTimer = null;
 
@@ -434,6 +451,19 @@
             if (!r.error) cache.audit = r.data;
         }
 
+        if (currentTab === "content") {
+            r = await sb.from("site_content").select("key, value");
+            if (!r.error) {
+                cache.content = {};
+                r.data.forEach(function (x) { cache.content[x.key] = x.value; });
+            }
+        }
+
+        if (currentTab === "banners") {
+            r = await sb.from("banners").select("*").order("sort_order", { ascending: true });
+            if (!r.error) cache.banners = r.data;
+        }
+
         if (r && r.error) toast("Could not load data: " + r.error.message, false);
     }
 
@@ -464,6 +494,8 @@
         if (currentTab === "plans")       renderPlans();
         if (currentTab === "support")     renderSupport(q);
         if (currentTab === "activity")    renderActivity(q);
+        if (currentTab === "content")     renderContentTab();
+        if (currentTab === "banners")     renderBanners(q);
     }
 
     function matches(obj, q) {
@@ -739,7 +771,8 @@
         withdrawal_approved: "Withdrawal approved", withdrawal_rejected: "Withdrawal rejected",
         plan_updated: "Plan updated", settings_min_withdraw: "Minimum withdrawal changed",
         settings_return_principal: "Return-principal setting changed",
-        user_suspended: "User suspended", user_unsuspended: "User unsuspended", support_reply: "Support reply sent"
+        user_suspended: "User suspended", user_unsuspended: "User unsuspended", support_reply: "Support reply sent",
+        content_updated: "Website text edited", banner_created: "Banner created", banner_updated: "Banner updated", banner_deleted: "Banner deleted"
     };
 
     function renderActivity(q) {
@@ -766,6 +799,151 @@
         });
 
         $("tableBox").innerHTML = html + "</tbody></table>";
+    }
+
+
+
+    /* ----- website content editor ----- */
+    var PAGE_OF = { "Home page": "index.html", "How it works (home page)": "index.html#how-it-works", "About page": "about.html",
+                    "Plans page": "plans.html", "Referral page": "referral.html", "FAQ page": "faq.html",
+                    "Contact page": "contact.html", "Privacy Policy page": "privacy.html", "Footer (all pages)": "index.html" };
+
+    function fieldHtml(f) {
+        var val = cache.content[f.key] != null ? cache.content[f.key] : f.def;
+        var input = f.type === "textarea"
+            ? '<textarea data-ckey="' + esc(f.key) + '" data-def="' + esc(f.def) + '" maxlength="2000" rows="3">' + esc(val) + '</textarea>'
+            : '<input type="text" data-ckey="' + esc(f.key) + '" data-def="' + esc(f.def) + '" maxlength="2000" value="' + esc(val) + '">';
+        return '<div class="cms-field"><label>' + esc(f.label) + '</label>' + input + '</div>';
+    }
+
+    function faqRowHtml(q, a) {
+        return '<div class="faq-row"><div class="cms-field"><label>Question</label><input type="text" class="faq-q" maxlength="200" value="' + esc(q) + '"></div>' +
+               '<div class="cms-field"><label>Answer</label><textarea class="faq-a" maxlength="1500" rows="3">' + esc(a) + '</textarea></div>' +
+               '<button type="button" class="btn btn-ghost" data-faq-remove="1" style="padding:6px 14px;font-size:12px;">Remove</button></div>';
+    }
+
+    function renderContentTab() {
+
+        var cfg = window.INV_CMS;
+        if (!cfg) { $("tableBox").innerHTML = '<div class="empty">Content settings did not load. Refresh the page.</div>'; return; }
+
+        var html = '<div style="padding:18px 20px;"><p class="small" style="font-size:13px;">Change the text of your website here. Leave nothing to code. ' +
+                   'Changes appear on the site within about 30 seconds. An empty box brings back the original text.</p>';
+
+        cfg.groups.forEach(function (g, gi) {
+
+            var grid = g.fields.length > 6 ? ' cms-grid' : '';
+            html += '<div class="panel" data-group="' + gi + '"><div class="panel-head"><h3>' + esc(g.title) + '</h3>' +
+                    '<a class="small" style="color:var(--gold);" target="_blank" href="' + esc(PAGE_OF[g.title] || "index.html") + '">Open page &rarr;</a></div>' +
+                    '<div class="' + grid.trim() + '">' + g.fields.map(fieldHtml).join("") + '</div>' +
+                    '<div class="cms-actions"><button class="btn" data-save-group="' + gi + '" style="padding:9px 18px;">Save this section</button>' +
+                    '<button class="btn btn-ghost" data-reset-group="' + gi + '" style="padding:9px 18px;">Reset to original</button></div></div>';
+        });
+
+        // FAQ list
+        var faq = cfg.faq;
+        if (cache.content.faq_items) { try { var p = JSON.parse(cache.content.faq_items); if (Array.isArray(p)) faq = p; } catch (e) {} }
+
+        html += '<div class="panel" id="faqPanel"><div class="panel-head"><h3>FAQ questions</h3>' +
+                '<a class="small" style="color:var(--gold);" target="_blank" href="faq.html">Open page &rarr;</a></div><div id="faqRows">' +
+                faq.map(function (i) { return faqRowHtml(i.q, i.a); }).join("") + '</div>' +
+                '<div class="cms-actions"><button class="btn btn-ghost" data-faq-add="1" style="padding:9px 18px;">+ Add question</button>' +
+                '<button class="btn" data-faq-save="1" style="padding:9px 18px;">Save FAQ</button>' +
+                '<button class="btn btn-ghost" data-faq-reset="1" style="padding:9px 18px;">Reset to original</button></div></div>';
+
+        $("tableBox").innerHTML = html + '</div>';
+    }
+
+    // saves only what you changed and keeps everything else on screen untouched
+    async function saveContent(items, okText) {
+        var r = await ctx.sb.rpc("admin_set_content", { p_items: items });
+        if (r.error) { toast(r.error.message, false); return false; }
+        try { sessionStorage.removeItem("inv_cms"); } catch (e) {}
+        Object.keys(items).forEach(function (k) {
+            if (items[k] === "") delete cache.content[k]; else cache.content[k] = items[k];
+        });
+        toast(okText, true);
+        return true;
+    }
+
+    /* ----- banners ----- */
+    function bannerStatus(b) {
+        var n = new Date().toISOString();
+        if (!b.active) return "Off";
+        if (b.starts_at && b.starts_at > n) return "Scheduled";
+        if (b.ends_at && b.ends_at < n) return "Expired";
+        return "Live";
+    }
+
+    function toLocalInput(iso) {
+        if (!iso) return "";
+        var d = new Date(iso);
+        if (isNaN(d)) return "";
+        var p = function (n) { return (n < 10 ? "0" : "") + n; };
+        return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+    }
+
+    function renderBanners(q) {
+
+        var rows = cache.banners.filter(function (b) { return matches(b, q); });
+
+        var html = '<div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+                   '<span class="small" style="font-size:13px;">Banners appear on top of every page (Top bar) or as a card on the home page (Home card).</span>' +
+                   '<button class="btn" data-banner-new="1" style="padding:9px 18px;">+ New banner</button></div>';
+
+        if (!rows.length) { $("tableBox").innerHTML = html + '<div class="empty">No banners yet.</div>'; return; }
+
+        html += "<table style='min-width:860px'><thead><tr><th>MESSAGE</th><th>WHERE</th><th>STYLE</th><th>SCHEDULE</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>";
+
+        rows.forEach(function (b) {
+            var st = bannerStatus(b);
+            var sched = (b.starts_at ? fmtTime(b.starts_at) : "now") + " &rarr; " + (b.ends_at ? fmtTime(b.ends_at) : "no end");
+            html += "<tr><td>" + esc(cut(b.message, 80)) + "</td>" +
+                "<td class='muted'>" + (b.placement === "home" ? "Home card" : "Top bar") + "</td>" +
+                "<td class='muted'>" + esc(cap(b.style)) + "</td>" +
+                "<td class='muted'>" + sched + "</td>" +
+                "<td><span class='badge " + st + "'>" + st + "</span></td>" +
+                "<td><div class='act'><button data-banner-edit='" + b.id + "'>Edit</button>" +
+                "<button class='warn' data-banner-toggle='" + b.id + "'>" + (b.active ? "Turn off" : "Turn on") + "</button>" +
+                "<button class='no' data-banner-del='" + b.id + "'>Delete</button></div></td></tr>";
+        });
+
+        $("tableBox").innerHTML = html + "</tbody></table>";
+    }
+
+    function openBannerForm(b) {
+
+        b = b || { id: null, message: "", link_text: "", link_url: "", style: "promo", placement: "top", image_url: "", starts_at: null, ends_at: null, active: true, sort_order: 0 };
+
+        var opt = function (v, label, cur) { return '<option value="' + v + '"' + (cur === v ? " selected" : "") + '>' + label + '</option>'; };
+
+        $("detailBox").innerHTML = '<div class="panel"><div class="panel-head"><h3>' + (b.id ? "Edit banner" : "New banner") + '</h3>' +
+            '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div>' +
+            '<form id="bannerForm" novalidate data-id="' + (b.id == null ? "" : b.id) + '">' +
+            '<div class="cms-field"><label>Message (max 300 characters)</label><textarea id="bMsg" maxlength="300" rows="3">' + esc(b.message) + '</textarea></div>' +
+            '<div class="cms-grid">' +
+              '<div class="cms-field"><label>Button / link text (optional)</label><input type="text" id="bLinkText" maxlength="40" value="' + esc(b.link_text || "") + '"></div>' +
+              '<div class="cms-field"><label>Link address (optional)</label><input type="text" id="bLinkUrl" maxlength="300" placeholder="plans.html or https://..." value="' + esc(b.link_url || "") + '"></div>' +
+              '<div class="cms-field"><label>Where to show</label><select id="bPlace">' + opt("top", "Top bar (every page)", b.placement) + opt("home", "Home page card", b.placement) + '</select></div>' +
+              '<div class="cms-field"><label>Colour style</label><select id="bStyle">' + opt("promo", "Lime (highlight)", b.style) + opt("info", "Blue (information)", b.style) + opt("success", "Green (good news)", b.style) + opt("warning", "Amber (notice)", b.style) + '</select></div>' +
+              '<div class="cms-field"><label>Image link (Home card only, optional)</label><input type="text" id="bImg" maxlength="500" placeholder="https://..." value="' + esc(b.image_url || "") + '"><div class="hint">Paste a link that starts with https://</div></div>' +
+              '<div class="cms-field"><label>Order (smaller number shows first)</label><input type="number" id="bSort" value="' + Number(b.sort_order || 0) + '"></div>' +
+              '<div class="cms-field"><label>Start (optional)</label><input type="datetime-local" id="bStart" value="' + toLocalInput(b.starts_at) + '"></div>' +
+              '<div class="cms-field"><label>End (optional)</label><input type="datetime-local" id="bEnd" value="' + toLocalInput(b.ends_at) + '"></div>' +
+            '</div>' +
+            '<label class="chk" style="margin:6px 0 14px;"><input type="checkbox" id="bActive"' + (b.active ? " checked" : "") + '> Show this banner on the site</label>' +
+            '<div class="cms-actions"><button type="submit" class="btn" id="bSave">Save banner</button></div></form></div>';
+
+        $("detailBox").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    async function saveBannerRow(b, over) {
+        var r = await ctx.sb.rpc("admin_save_banner", {
+            p_id: b.id, p_message: b.message, p_link_text: b.link_text, p_link_url: b.link_url, p_style: b.style,
+            p_placement: b.placement, p_image_url: b.image_url, p_starts: b.starts_at, p_ends: b.ends_at,
+            p_active: over && over.active != null ? over.active : b.active, p_sort: b.sort_order
+        });
+        return r;
     }
 
 
@@ -901,6 +1079,125 @@
         var r2 = await ctx.sb.rpc("admin_set_return_principal", { p_value: $("returnPrincipal").checked });
 
         toast(r2.error ? r2.error.message : "Settings saved.", !r2.error);
+    });
+
+
+
+    /* ----- content + banner buttons ----- */
+    $("tableBox").addEventListener("click", async function (e) {
+
+        // save / reset one section
+        var sg = e.target.closest("button[data-save-group]");
+        var rg = e.target.closest("button[data-reset-group]");
+
+        if (sg || rg) {
+
+            var panel = (sg || rg).closest(".panel");
+            var items = {};
+
+            panel.querySelectorAll("[data-ckey]").forEach(function (el) {
+                var v = el.value.trim();
+                items[el.getAttribute("data-ckey")] = (rg || v === el.getAttribute("data-def")) ? "" : v;
+            });
+
+            var done = await saveContent(items, rg ? "Original text restored." : "Saved. The site will show it within 30 seconds.");
+
+            if (done && rg) {
+                panel.querySelectorAll("[data-ckey]").forEach(function (el) { el.value = el.getAttribute("data-def"); });
+            }
+            return;
+        }
+
+        // FAQ editor
+        if (e.target.closest("button[data-faq-add]")) {
+            $("faqRows").insertAdjacentHTML("beforeend", faqRowHtml("", ""));
+            return;
+        }
+
+        var fr = e.target.closest("button[data-faq-remove]");
+        if (fr) { fr.closest(".faq-row").remove(); return; }
+
+        if (e.target.closest("button[data-faq-reset]")) {
+            if (await saveContent({ faq_items: "" }, "Original FAQ restored.")) {
+                $("faqRows").innerHTML = window.INV_CMS.faq.map(function (i) { return faqRowHtml(i.q, i.a); }).join("");
+            }
+            return;
+        }
+
+        if (e.target.closest("button[data-faq-save]")) {
+
+            var list = [];
+            document.querySelectorAll("#faqRows .faq-row").forEach(function (row) {
+                var q = row.querySelector(".faq-q").value.trim(), a = row.querySelector(".faq-a").value.trim();
+                if (q) list.push({ q: q, a: a });
+            });
+
+            if (!list.length) { toast("Add at least one question, or use Reset to original.", false); return; }
+
+            var same = JSON.stringify(list) === JSON.stringify(window.INV_CMS.faq);
+            await saveContent({ faq_items: same ? "" : JSON.stringify(list) }, "FAQ saved.");
+            return;
+        }
+
+        // banners
+        if (e.target.closest("button[data-banner-new]")) { openBannerForm(); return; }
+
+        var be = e.target.closest("button[data-banner-edit]");
+        if (be) {
+            var b1 = cache.banners.filter(function (x) { return String(x.id) === be.getAttribute("data-banner-edit"); })[0];
+            if (b1) openBannerForm(b1);
+            return;
+        }
+
+        var bt = e.target.closest("button[data-banner-toggle]");
+        if (bt) {
+            var b2 = cache.banners.filter(function (x) { return String(x.id) === bt.getAttribute("data-banner-toggle"); })[0];
+            if (!b2) return;
+            var rt = await saveBannerRow(b2, { active: !b2.active });
+            if (rt.error) { toast(rt.error.message, false); return; }
+            try { sessionStorage.removeItem("inv_cms"); } catch (x) {}
+            toast(b2.active ? "Banner turned off." : "Banner turned on.", true);
+            await loadTab(); render();
+            return;
+        }
+
+        var bd = e.target.closest("button[data-banner-del]");
+        if (bd) {
+            if (!confirm("Delete this banner for good?")) return;
+            var rd = await ctx.sb.rpc("admin_delete_banner", { p_id: Number(bd.getAttribute("data-banner-del")) });
+            if (rd.error) { toast(rd.error.message, false); return; }
+            try { sessionStorage.removeItem("inv_cms"); } catch (x) {}
+            toast("Banner deleted.", true);
+            await loadTab(); render();
+        }
+    });
+
+    $("detailBox").addEventListener("submit", async function (e) {
+
+        if (e.target.id !== "bannerForm") return;
+        e.preventDefault();
+
+        var idv = e.target.getAttribute("data-id");
+        var st = $("bStart").value, en = $("bEnd").value;
+
+        var row = {
+            id: idv === "" ? null : Number(idv),
+            message: $("bMsg").value, link_text: $("bLinkText").value, link_url: $("bLinkUrl").value,
+            style: $("bStyle").value, placement: $("bPlace").value, image_url: $("bImg").value,
+            starts_at: st ? new Date(st).toISOString() : null, ends_at: en ? new Date(en).toISOString() : null,
+            active: $("bActive").checked, sort_order: parseInt($("bSort").value, 10) || 0
+        };
+
+        $("bSave").disabled = true;
+        var r = await saveBannerRow(row);
+        $("bSave").disabled = false;
+
+        if (r.error) { toast(r.error.message, false); return; }
+
+        try { sessionStorage.removeItem("inv_cms"); } catch (x) {}
+        toast("Banner saved.", true);
+        $("detailBox").innerHTML = "";
+        await loadTab(); render();
     });
 
 
