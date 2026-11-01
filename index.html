@@ -27,12 +27,12 @@
     <section class="hero">
         <div class="container hero-grid">
             <div class="hero-content">
-                <div class="hero-label">SMART INVESTMENT • BRIGHTER FUTURE</div>
-                <h1>Invest Today.<br><span>Build Your Future.</span></h1>
-                <p>Explore structured investment plans and manage your financial journey through one simple platform.</p>
+                <div class="hero-label" data-cms="home_label">SMART INVESTMENT • BRIGHTER FUTURE</div>
+                <h1><span class="plain" data-cms="home_title_1">Invest Today.</span><br><span data-cms="home_title_2">Build Your Future.</span></h1>
+                <p data-cms="home_text">Explore structured investment plans and manage your financial journey through one simple platform.</p>
                 <div class="hero-buttons">
-                    <a href="register.html" class="btn btn-primary btn-large">Create Account</a>
-                    <a href="login.html" class="btn btn-outline btn-large">Login</a>
+                    <a href="register.html" class="btn btn-primary btn-large" data-cms="home_btn1">Create Account</a>
+                    <a href="login.html" class="btn btn-outline btn-large" data-cms="home_btn2">Login</a>
                 </div>
             </div>
             <div class="hero-card">
@@ -48,15 +48,17 @@
         </div>
     </section>
 
+    <div class="container home-banners" id="homeBanners"></div>
+
     <section class="steps-section" id="how-it-works">
         <div class="container">
             <div class="section-label">HOW IT WORKS</div>
-            <h2>Start In Four Simple Steps</h2>
+            <h2 data-cms="steps_title">Start In Four Simple Steps</h2>
             <div class="steps-grid steps-4">
-                <div class="step-card"><div class="step-number">01</div><h3>Create Account</h3><p>Register with your basic details and verify your email with a one-time code.</p></div>
-                <div class="step-card"><div class="step-number">02</div><h3>Choose A Plan</h3><p>Review the available plans, compare duration and rates, then pick the one that fits.</p></div>
-                <div class="step-card"><div class="step-number">03</div><h3>Submit Deposit</h3><p>Enter a (virtual) amount and payment method. An admin reviews and approves your request.</p></div>
-                <div class="step-card"><div class="step-number">04</div><h3>Track &amp; Withdraw</h3><p>Follow daily progress in your dashboard and request a (virtual) withdrawal any time.</p></div>
+                <div class="step-card"><div class="step-number">01</div><h3 data-cms="step1_title">Create Account</h3><p data-cms="step1_text">Register with your basic details and verify your email with a one-time code.</p></div>
+                <div class="step-card"><div class="step-number">02</div><h3 data-cms="step2_title">Choose A Plan</h3><p data-cms="step2_text">Review the available plans, compare duration and rates, then pick the one that fits.</p></div>
+                <div class="step-card"><div class="step-number">03</div><h3 data-cms="step3_title">Submit Deposit</h3><p data-cms="step3_text">Enter a (virtual) amount and payment method. An admin reviews and approves your request.</p></div>
+                <div class="step-card"><div class="step-number">04</div><h3 data-cms="step4_title">Track &amp; Withdraw</h3><p data-cms="step4_text">Follow daily progress in your dashboard and request a (virtual) withdrawal any time.</p></div>
             </div>
         </div>
     </section>
@@ -88,7 +90,7 @@
         <div class="container footer-content">
             <div>
                 <a href="index.html" class="logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgNTYiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0iSU5WRVhPUkEiPgogIDxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2Q2ZmY0YSIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2I4ZjIwMCIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDAsNCkgc2NhbGUoMC43NSkiPgogICAgPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9InVybCgjZykiLz4KICAgIDxwYXRoIGQ9Ik0xNiA0MiBMMjggMzAgTDM2IDM3IEw1MCAyMCIgc3Ryb2tlPSIjMGEwZTE3IiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgogICAgPHBhdGggZD0iTTQwIDIwIEg1MCBWMzAiIHN0cm9rZT0iIzBhMGUxNyIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz4KICA8L2c+CiAgPHRleHQgeD0iNTgiIHk9IjM2IiBmb250LWZhbWlseT0iJ1NwYWNlIEdyb3Rlc2snLCAnU2Vnb2UgVUknLCBBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI3IiBmb250LXdlaWdodD0iNzAwIiBsZXR0ZXItc3BhY2luZz0iMSIgdGV4dExlbmd0aD0iMTg2IiBsZW5ndGhBZGp1c3Q9InNwYWNpbmdBbmRHbHlwaHMiIGZpbGw9IiNmZmZmZmYiPklOVkU8dHNwYW4gZmlsbD0iI2M4ZmYxZSI+WE9SQTwvdHNwYW4+PC90ZXh0PgogIDx0ZXh0IHg9IjU5IiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjcuNSIgbGV0dGVyLXNwYWNpbmc9IjMuMiIgZmlsbD0iIzdkODY5YSI+U01BUlQgSU5WRVNUTUVOVDwvdGV4dD4KPC9zdmc+Cg==" alt="INVEXORA" style="display:block;height:40px;width:auto"></a>
-                <p>Smart tools for managing your investment journey.</p>
+                <p data-cms="footer_tagline">Smart tools for managing your investment journey.</p>
             </div>
             <div class="footer-links">
                 <a href="about.html">About</a>
