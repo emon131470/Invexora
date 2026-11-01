@@ -146,7 +146,7 @@
                 ],
                 settings: { id: 1, min_withdraw: 5, return_principal: true },
                 deposits: [], investments: [], profit_logs: [], referral_earnings: [], withdrawals: [],
-                audit_log: [], support_messages: [],
+                audit_log: [], support_messages: [], site_content: [], banners: [],
                 seq: 0
             };
         }
@@ -157,6 +157,8 @@
                 if (d && d.plans && d.profiles) {
                     d.audit_log = d.audit_log || [];
                     d.support_messages = d.support_messages || [];
+                    d.site_content = d.site_content || [];
+                    d.banners = d.banners || [];
                     return d;
                 }
             } catch (e) {}
@@ -509,6 +511,68 @@
                 return null;
             },
 
+            admin_set_content: function (db, a) {
+                needAdmin(db);
+                var allowed = ["home_label", "home_title_1", "home_title_2", "home_text", "home_btn1", "home_btn2", "steps_title", "step1_title", "step1_text", "step2_title", "step2_text", "step3_title", "step3_text", "step4_title", "step4_text", "about_label", "about_title", "about_text", "about_what_title", "about_what_text", "plans_label", "plans_title", "plans_text", "referral_label", "referral_title", "referral_text", "faq_label", "faq_title", "faq_text", "contact_label", "contact_title", "contact_text", "contact_email", "contact_hours", "privacy_label", "privacy_title", "privacy_text", "footer_tagline", "faq_items"];
+                var items = a.p_items;
+                if (!items || typeof items !== "object") throw new Error("Invalid content");
+                var changed = [];
+                Object.keys(items).forEach(function (k) {
+                    if (allowed.indexOf(k) < 0) throw new Error("This text cannot be edited: " + k);
+                    var v = String(items[k] == null ? "" : items[k]);
+                    db.site_content = db.site_content.filter(function (r) { return r.key !== k; });
+                    if (v.trim() !== "") {
+                        if (k === "faq_items") {
+                            var arr; try { arr = JSON.parse(v); } catch (e) { throw new Error("Invalid FAQ list"); }
+                            if (!Array.isArray(arr) || v.length > 30000) throw new Error("Invalid FAQ list");
+                        } else if (v.length > 2000) {
+                            throw new Error("Text is too long (maximum 2000 characters): " + k);
+                        }
+                        db.site_content.push({ key: k, value: v, updated_at: nowIso() });
+                    }
+                    changed.push(k);
+                });
+                audit(db, "content_updated", "site_content", "", { keys: changed });
+                return null;
+            },
+
+            admin_save_banner: function (db, a) {
+                needAdmin(db);
+                var msg = String(a.p_message == null ? "" : a.p_message).trim();
+                var lt = String(a.p_link_text || "").trim() || null;
+                var lu = String(a.p_link_url || "").trim() || null;
+                var img = String(a.p_image_url || "").trim() || null;
+                if (msg.length < 1 || msg.length > 300) throw new Error("The banner message must be 1 to 300 characters");
+                if (lu && !/^(https?:\/\/\S+|[A-Za-z0-9_.\/#?=&-]+)$/.test(lu)) throw new Error("The link must start with http:// or https:// (or be a page like plans.html)");
+                if (img && !/^(https:\/\/\S+|[A-Za-z0-9_.\/-]+)$/.test(img)) throw new Error("The image link must start with https://");
+                if (a.p_starts && a.p_ends && a.p_ends < a.p_starts) throw new Error("The end date must be after the start date");
+                var row = {
+                    message: msg, link_text: lt, link_url: lu, style: a.p_style || "info", placement: a.p_placement || "top",
+                    image_url: img, starts_at: a.p_starts || null, ends_at: a.p_ends || null,
+                    active: a.p_active == null ? true : !!a.p_active, sort_order: Number(a.p_sort) || 0, updated_at: nowIso()
+                };
+                if (a.p_id == null) {
+                    row.id = ++db.seq; row.created_at = nowIso();
+                    db.banners.push(row);
+                    audit(db, "banner_created", "banners", row.id, { message: msg.slice(0, 80) });
+                    return row.id;
+                }
+                var ex = db.banners.filter(function (b) { return b.id === a.p_id; })[0];
+                if (!ex) throw new Error("Banner not found");
+                Object.keys(row).forEach(function (k) { ex[k] = row[k]; });
+                audit(db, "banner_updated", "banners", ex.id, { message: msg.slice(0, 80), active: ex.active });
+                return ex.id;
+            },
+
+            admin_delete_banner: function (db, a) {
+                needAdmin(db);
+                var n = db.banners.length;
+                db.banners = db.banners.filter(function (b) { return b.id !== a.p_id; });
+                if (db.banners.length === n) throw new Error("Banner not found");
+                audit(db, "banner_deleted", "banners", a.p_id, null);
+                return null;
+            },
+
             admin_support_threads: function (db) {
                 needAdmin(db);
                 var out = [];
@@ -613,13 +677,19 @@
                 profiles: db.profiles, plans: db.plans, settings: [db.settings], deposits: db.deposits,
                 investments: db.investments, profit_logs: db.profit_logs,
                 referral_earnings: db.referral_earnings, withdrawals: db.withdrawals,
-                audit_log: db.audit_log, support_messages: db.support_messages
+                audit_log: db.audit_log, support_messages: db.support_messages,
+                site_content: db.site_content, banners: db.banners
             }[t];
 
             if (!source) return { data: null, error: { message: "Unknown table: " + t } };
 
             var rows = source.filter(function (r) {
-                if (t === "plans" || t === "settings") return true;
+                if (t === "plans" || t === "settings" || t === "site_content") return true;
+                if (t === "banners") {
+                    if (admin) return true;
+                    var nowIso_ = new Date().toISOString();
+                    return !!r.active && (!r.starts_at || r.starts_at <= nowIso_) && (!r.ends_at || r.ends_at >= nowIso_);
+                }
                 if (!m) return false;
                 if (t === "audit_log") return admin;
                 if (admin) return true;
@@ -1367,6 +1437,144 @@
     }
 
 
+
+    /* =====================================================
+       EDITABLE CONTENT + BANNERS  (managed from the admin panel)
+       ===================================================== */
+
+    var CMS_CONFIG = {"groups": [{"title": "Home page", "fields": [{"key": "home_label", "label": "Small label above the title", "type": "text", "def": "SMART INVESTMENT • BRIGHTER FUTURE"}, {"key": "home_title_1", "label": "Title, first line", "type": "text", "def": "Invest Today."}, {"key": "home_title_2", "label": "Title, second line (highlighted)", "type": "text", "def": "Build Your Future."}, {"key": "home_text", "label": "Intro paragraph", "type": "textarea", "def": "Explore structured investment plans and manage your financial journey through one simple platform."}, {"key": "home_btn1", "label": "Main button text", "type": "text", "def": "Create Account"}, {"key": "home_btn2", "label": "Second button text", "type": "text", "def": "Login"}]}, {"title": "How it works (home page)", "fields": [{"key": "steps_title", "label": "Section title", "type": "text", "def": "Start In Four Simple Steps"}, {"key": "step1_title", "label": "Step 1 title", "type": "text", "def": "Create Account"}, {"key": "step1_text", "label": "Step 1 text", "type": "textarea", "def": "Register with your basic details and verify your email with a one-time code."}, {"key": "step2_title", "label": "Step 2 title", "type": "text", "def": "Choose A Plan"}, {"key": "step2_text", "label": "Step 2 text", "type": "textarea", "def": "Review the available plans, compare duration and rates, then pick the one that fits."}, {"key": "step3_title", "label": "Step 3 title", "type": "text", "def": "Submit Deposit"}, {"key": "step3_text", "label": "Step 3 text", "type": "textarea", "def": "Enter a (virtual) amount and payment method. An admin reviews and approves your request."}, {"key": "step4_title", "label": "Step 4 title", "type": "text", "def": "Track & Withdraw"}, {"key": "step4_text", "label": "Step 4 text", "type": "textarea", "def": "Follow daily progress in your dashboard and request a (virtual) withdrawal any time."}]}, {"title": "About page", "fields": [{"key": "about_label", "label": "Small label", "type": "text", "def": "ABOUT INVEXORA"}, {"key": "about_title", "label": "Page title", "type": "text", "def": "A clear way to learn how investment plans work"}, {"key": "about_text", "label": "Intro text", "type": "textarea", "def": "INVEXORA is an investment platform that allows you to oversee the entire investment process—from sign-up all the way to fund withdrawal."}, {"key": "about_what_title", "label": "\"What we are\" title", "type": "text", "def": "What we are"}, {"key": "about_what_text", "label": "\"What we are\" paragraph", "type": "textarea", "def": "INVEXORA simulates the journey of an investment platform: choosing a plan, submitting a deposit, admin approval, daily profit tracking, referrals and withdrawals."}]}, {"title": "Plans page", "fields": [{"key": "plans_label", "label": "Small label", "type": "text", "def": "INVESTMENT PLANS"}, {"key": "plans_title", "label": "Page title", "type": "text", "def": "Choose a plan that fits your goal"}, {"key": "plans_text", "label": "Intro text", "type": "textarea", "def": "Compare the simulated plans below. Rates and durations are set by the platform and shown before you submit any deposit."}]}, {"title": "Referral page", "fields": [{"key": "referral_label", "label": "Small label", "type": "text", "def": "REFERRAL PROGRAM"}, {"key": "referral_title", "label": "Page title", "type": "text", "def": "Share your code, follow every referral"}, {"key": "referral_text", "label": "Intro text", "type": "textarea", "def": "Invite friends with your personal referral code. When a referred user's deposit is approved, a commission is added to your balance."}]}, {"title": "FAQ page", "fields": [{"key": "faq_label", "label": "Small label", "type": "text", "def": "FAQ"}, {"key": "faq_title", "label": "Page title", "type": "text", "def": "Frequently asked questions"}, {"key": "faq_text", "label": "Intro text", "type": "textarea", "def": "Quick answers about accounts, plans, deposits, withdrawals and referrals."}]}, {"title": "Contact page", "fields": [{"key": "contact_label", "label": "Small label", "type": "text", "def": "CONTACT"}, {"key": "contact_title", "label": "Page title", "type": "text", "def": "We are here to help"}, {"key": "contact_text", "label": "Intro text", "type": "textarea", "def": "Send us a message about your account, plans or anything on the site. We reply by email."}, {"key": "contact_email", "label": "Support email address (shown on the page and used by the form)", "type": "text", "def": "support@yourdomain.com"}, {"key": "contact_hours", "label": "Response time text", "type": "text", "def": "We aim to reply within one to two working days."}]}, {"title": "Privacy Policy page", "fields": [{"key": "privacy_label", "label": "Small label", "type": "text", "def": "PRIVACY POLICY"}, {"key": "privacy_title", "label": "Page title", "type": "text", "def": "How we handle your information"}, {"key": "privacy_text", "label": "Intro text", "type": "textarea", "def": "A plain-language explanation of what we collect, why we collect it and the choices you have."}]}, {"title": "Footer (all pages)", "fields": [{"key": "footer_tagline", "label": "Footer tagline", "type": "text", "def": "Smart tools for managing your investment journey."}]}], "faq": [{"q": "What is INVEXORA?", "a": "INVEXORA is a demo platform that simulates an investment website. You can register, choose a plan, submit a deposit, track daily profit, refer friends and request withdrawals, all with virtual balances."}, {"q": "Is real money involved?", "a": "No. All balances, profits and commissions are virtual. The site does not accept, hold or send real money."}, {"q": "How do I create an account?", "a": "Click Register, enter your name, email and phone, then type the one-time code sent to your email. Your account is ready right after verification."}, {"q": "How does login work?", "a": "Enter your email on the Login page. We send a one-time code to that address. Enter the code to sign in. There is no password to remember."}, {"q": "I did not receive my code. What should I do?", "a": "Check your spam folder, wait a minute and use Resend code. Make sure you typed the email correctly. Requesting too many codes in a short time can temporarily block new ones."}, {"q": "How do deposits work?", "a": "Choose a plan, enter an amount inside its range, pick a payment method and submit. An administrator reviews the request. When it is approved, your plan starts."}, {"q": "When is daily profit added?", "a": "After approval, the plan's daily rate is added to your balance once per day until the plan ends. You can follow each day in My Investments."}, {"q": "How do I withdraw?", "a": "Open the Withdraw tab in your dashboard, enter an amount up to your available balance (above the minimum) and submit. An administrator reviews the request."}, {"q": "How does the referral program work?", "a": "Share your code or link. When someone registers with it and their deposit is approved, a commission for that plan is added to your balance."}, {"q": "Can I change the plan after I start?", "a": "A running plan keeps its original terms. You can start another plan by submitting a new deposit."}, {"q": "Where can I get help?", "a": "Use the Contact page and we will reply by email."}]};
+    root.INV_CMS = CMS_CONFIG;
+
+    function safeUrl(u) {
+        u = String(u || "").trim();
+        if (!u) return "";
+        if (/^https?:\/\/\S+$/i.test(u)) return u;
+        if (/^[A-Za-z0-9_.\/#?=&-]+$/.test(u)) return u;
+        return "";
+    }
+
+    function domReady() {
+        return new Promise(function (resolve) {
+            if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { resolve(); });
+            else resolve();
+        });
+    }
+
+    function dismissedList() {
+        try { return JSON.parse(sessionStorage.getItem("inv_dismissed") || "[]"); } catch (e) { return []; }
+    }
+
+    function bannerLive(b) {
+        var n = new Date().toISOString();
+        return !!b.active && (!b.starts_at || b.starts_at <= n) && (!b.ends_at || b.ends_at >= n);
+    }
+
+    function renderBanners(list) {
+
+        list = (list || []).filter(bannerLive).sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); });
+
+        var gone = dismissedList();
+
+        // slim bars at the top of every page
+        var tops = list.filter(function (b) { return b.placement === "top" && gone.indexOf(b.id) < 0; });
+
+        if (tops.length) {
+
+            var box = document.createElement("div");
+            box.className = "site-banners";
+
+            tops.forEach(function (b) {
+                var link = safeUrl(b.link_url);
+                var el = document.createElement("div");
+                el.className = "site-banner " + (["info", "success", "warning", "promo"].indexOf(b.style) > -1 ? b.style : "info");
+                el.innerHTML = '<span class="sb-text">' + esc(b.message) + '</span>' +
+                    (link && b.link_text ? ' <a class="sb-link" href="' + esc(link) + '">' + esc(b.link_text) + '</a>' : '') +
+                    '<button type="button" class="sb-close" aria-label="Close">×</button>';
+                el.querySelector(".sb-close").addEventListener("click", function () {
+                    var g = dismissedList(); g.push(b.id);
+                    try { sessionStorage.setItem("inv_dismissed", JSON.stringify(g)); } catch (e) {}
+                    el.remove();
+                });
+                box.appendChild(el);
+            });
+
+            var header = document.querySelector("header");
+            if (header && header.parentNode) header.parentNode.insertBefore(box, header);
+            else document.body.insertBefore(box, document.body.firstChild);
+        }
+
+        // bigger cards on the home page
+        var homeBox = document.getElementById("homeBanners");
+        var homes = list.filter(function (b) { return b.placement === "home"; });
+
+        if (homeBox && homes.length) {
+            homeBox.innerHTML = homes.map(function (b) {
+                var link = safeUrl(b.link_url), img = String(b.image_url || "");
+                var imgOk = /^https:\/\/\S+$/i.test(img) || /^[A-Za-z0-9_.\/-]+$/.test(img);
+                return '<div class="home-banner ' + (["info", "success", "warning", "promo"].indexOf(b.style) > -1 ? b.style : "info") + '">' +
+                    (img && imgOk ? '<img src="' + esc(img) + '" alt="" loading="lazy">' : '') +
+                    '<div class="hb-body"><p>' + esc(b.message) + '</p>' +
+                    (link && b.link_text ? '<a class="btn btn-primary" href="' + esc(link) + '">' + esc(b.link_text) + '</a>' : '') +
+                    '</div></div>';
+            }).join("");
+        }
+    }
+
+    function renderContent(content) {
+
+        document.querySelectorAll("[data-cms]").forEach(function (el) {
+            var v = content[el.getAttribute("data-cms")];
+            if (v != null && String(v).trim() !== "") el.textContent = v;
+        });
+
+        var faqBox = document.getElementById("faqList");
+
+        if (faqBox && content.faq_items) {
+            try {
+                var items = JSON.parse(content.faq_items);
+                if (Array.isArray(items) && items.length) {
+                    faqBox.innerHTML = items.filter(function (i) { return i && i.q; }).map(function (i) {
+                        return '<details class="faq-item"><summary>' + esc(i.q) + '</summary><p>' + esc(i.a || "") + '</p></details>';
+                    }).join("");
+                }
+            } catch (e) {}
+        }
+
+        root.INV_CMS_CONTENT = content;
+        document.dispatchEvent(new CustomEvent("inv-cms-ready", { detail: content }));
+    }
+
+    async function applyCms() {
+
+        if (document.body.hasAttribute("data-nochat")) return;   // not on the admin page
+
+        await domReady();
+
+        var data = null;
+
+        try {
+            var c = JSON.parse(sessionStorage.getItem("inv_cms") || "null");
+            if (c && Date.now() - c.t < 30000) data = c;
+        } catch (e) {}
+
+        if (!data) {
+
+            var a = await sb.from("site_content").select("key, value");
+            var b = await sb.from("banners").select("*").order("sort_order", { ascending: true });
+
+            data = { t: Date.now(), content: {}, banners: [] };
+
+            if (!a.error && a.data) a.data.forEach(function (r) { data.content[r.key] = r.value; });
+            if (!b.error && b.data) data.banners = b.data;
+
+            try { sessionStorage.setItem("inv_cms", JSON.stringify(data)); } catch (e) {}
+        }
+
+        renderContent(data.content);
+        renderBanners(data.banners);
+    }
+
+
     /* ---------- start ---------- */
 
     injectStyles();
@@ -1428,6 +1636,7 @@
         reveal();
 
         try { initChat(sess); } catch (e) { try { console.error(e); } catch (x) {} }
+        try { applyCms().catch(function (e) { try { console.error(e); } catch (x) {} }); } catch (e) {}
 
         return { sb: sb, session: sess, profile: profile };
 
