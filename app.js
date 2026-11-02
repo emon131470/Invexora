@@ -248,6 +248,82 @@
             if (!isAdmin(db)) throw new Error("Admins only");
         }
 
+        /* ----- tiny "realtime" bus (same idea as Supabase Realtime, works across tabs) ----- */
+        var bus = (typeof BroadcastChannel !== "undefined") ? new BroadcastChannel("inv_rt") : null;
+        var channels = [];
+        var selfId = uid();
+        var outbox = [];      // events are sent only AFTER the data is saved, so listeners always find it
+
+        function syncPresence(ch) {
+            ch.handlers.forEach(function (h) { if (h.type === "presence" && h.filter && h.filter.event === "sync") h.cb(); });
+        }
+
+        function deliver(msg) {
+            channels.slice().forEach(function (ch) {
+
+                if (msg.k === "pg") {
+                    var who = me(load());
+                    if (!who) return;
+                    if (who.role !== "admin" && msg.row.user_id !== who.id) return;     // same privacy rule as the server
+                    ch.handlers.forEach(function (h) {
+                        if (h.type !== "postgres_changes" || h.filter.table !== msg.table) return;
+                        if (h.filter.event && h.filter.event !== "*" && h.filter.event !== msg.event) return;
+                        if (h.filter.filter) {
+                            var m = String(h.filter.filter).match(/^(\w+)=eq\.(.+)$/);
+                            if (m && String(msg.row[m[1]]) !== m[2]) return;
+                        }
+                        h.cb({ eventType: msg.event, new: msg.row });
+                    });
+                    return;
+                }
+
+                if (msg.topic !== ch.name) return;
+
+                if (msg.k === "bc") {
+                    if (msg.from === selfId) return;
+                    ch.handlers.forEach(function (h) {
+                        if (h.type === "broadcast" && h.filter.event === msg.event) h.cb({ event: msg.event, payload: msg.payload });
+                    });
+                } else if (msg.k === "join")  { ch.state[msg.key] = msg.payload; syncPresence(ch); }
+                else if (msg.k === "leave")   { delete ch.state[msg.key]; syncPresence(ch); }
+                else if (msg.k === "who")     { if (ch.tracked && msg.from !== selfId) emit({ k: "join", topic: ch.name, key: ch.key, payload: ch.tracked }); }
+            });
+        }
+
+        function emit(msg) {
+            msg.from = selfId;
+            try { if (bus) bus.postMessage(msg); } catch (e) {}
+            deliver(msg);
+        }
+
+        if (bus) bus.onmessage = function (e) { if (e.data && e.data.from !== selfId) deliver(e.data); };
+
+        try {
+            window.addEventListener("pagehide", function () {
+                channels.forEach(function (ch) { if (ch.tracked) { try { bus && bus.postMessage({ k: "leave", topic: ch.name, key: ch.key, from: selfId }); } catch (e) {} } });
+            });
+        } catch (e) {}
+
+        function makeChannel(name, cfg) {
+            var ch = { name: name, handlers: [], tracked: null, state: {},
+                       key: (cfg && cfg.config && cfg.config.presence && cfg.config.presence.key) || uid() };
+            ch.on = function (type, filter, cb) { ch.handlers.push({ type: type, filter: filter || {}, cb: cb }); return ch; };
+            ch.subscribe = function (cb) {
+                channels.push(ch);
+                setTimeout(function () { if (cb) cb("SUBSCRIBED"); emit({ k: "who", topic: name }); }, 0);
+                return ch;
+            };
+            ch.send = function (m) { emit({ k: "bc", topic: name, event: m.event, payload: m.payload || {} }); return Promise.resolve("ok"); };
+            ch.track = function (p) { ch.tracked = p; emit({ k: "join", topic: name, key: ch.key, payload: p }); return Promise.resolve("ok"); };
+            ch.presenceState = function () { var o = {}; Object.keys(ch.state).forEach(function (k) { o[k] = [ch.state[k]]; }); return o; };
+            ch.unsubscribe = function () {
+                channels = channels.filter(function (x) { return x !== ch; });
+                if (ch.tracked) emit({ k: "leave", topic: name, key: ch.key });
+                return Promise.resolve("ok");
+            };
+            return ch;
+        }
+
         var rpcs = {
 
             referral_code_exists: function (db, a) {
@@ -484,6 +560,7 @@
                 if (recent >= 10) throw new Error("You are sending messages too fast. Please wait a few minutes.");
                 var row = { id: ++db.seq, user_id: m.id, sender: "user", body: txt, read_by_admin: false, read_by_user: true, created_at: nowIso() };
                 db.support_messages.push(row);
+                outbox.push({ k: "pg", table: "support_messages", event: "INSERT", row: copy(row) });
                 return row.id;
             },
 
@@ -502,6 +579,7 @@
                 db.support_messages.push(row);
                 db.support_messages.forEach(function (x) { if (x.user_id === a.p_user && x.sender === "user") x.read_by_admin = true; });
                 audit(db, "support_reply", "support_messages", row.id, { user_id: a.p_user });
+                outbox.push({ k: "pg", table: "support_messages", event: "INSERT", row: copy(row) });
                 return row.id;
             },
 
@@ -815,6 +893,9 @@
             isLocal: true,
             auth: auth,
 
+            channel: makeChannel,
+            removeChannel: function (ch) { return ch && ch.unsubscribe ? ch.unsubscribe() : Promise.resolve("ok"); },
+
             from: function (table) { return new Query(table); },
 
             rpc: async function (name, args) {
@@ -826,6 +907,7 @@
                     var db = load();
                     var data = fn(db, args || {});
                     save(db);
+                    while (outbox.length) emit(outbox.shift());
                     return { data: data === undefined ? null : data, error: null };
                 } catch (e) {
                     return { data: null, error: { message: String(e.message || e) } };
@@ -1298,7 +1380,7 @@
             '</button>' +
             '<div class="chat-panel" hidden role="dialog" aria-label="Support chat">' +
                 '<div class="chat-head">' +
-                    '<div><strong>INVEXORA Support</strong><small>Tell us your problem. An admin will reply here.</small></div>' +
+                    '<div><strong>INVEXORA Support</strong><small class="chat-status">Tell us your problem. An admin will reply here.</small></div>' +
                     '<button type="button" class="chat-close" aria-label="Close chat">×</button>' +
                 '</div>' +
                 '<div class="chat-body"></div>' +
@@ -1321,6 +1403,14 @@
         var errBox = root_.querySelector(".chat-err");
         var msgs   = [];
         var busy   = false;
+        var statusEl = root_.querySelector(".chat-status");
+        var adminOnline = false;
+        var typingUntil = 0;
+        var lastTypingSent = 0;
+        var botNoticeAfter = null;
+        var rtChannel = null;
+        var lastUnread = 0;
+        var refreshSeq = 0;
 
         var GREETING = "Hi! 👋 Tell us about your problem (account, deposit, withdrawal, referral...). " +
                        "Our admin team will read your message and reply right here. You will see a red dot when there is a reply.";
@@ -1353,10 +1443,24 @@
                 var mine = m.sender === "user";
                 html += '<div class="chat-msg ' + (mine ? "me" : "them") + '"><div class="chat-bubble">' + esc(m.body) + '</div>' +
                         '<div class="chat-meta">' + (mine ? "You" : "Support team") + ' · ' + esc(fmt(m.created_at)) + '</div></div>';
+                if (botNoticeAfter != null && m.id === botNoticeAfter) {
+                    html += '<div class="chat-msg them bot"><div class="chat-bubble">Thanks! Our team is offline right now. We will reply right here as soon as an admin sees your message.</div><div class="chat-meta">INVEXORA Bot</div></div>';
+                }
             });
+
+            if (Date.now() < typingUntil) {
+                html += '<div class="chat-msg them"><div class="chat-bubble typing"><span></span><span></span><span></span></div><div class="chat-meta">Support team is typing...</div></div>';
+            }
 
             body.innerHTML = html;
             body.scrollTop = body.scrollHeight;
+        }
+
+        function setStatus() {
+            if (!sess) return;
+            statusEl.innerHTML = adminOnline
+                ? '<span class="chat-dot on"></span>Support team is online'
+                : '<span class="chat-dot"></span>Offline now. Leave a message, we reply here.';
         }
 
         function setBadge(n) {
@@ -1368,13 +1472,24 @@
 
             if (!sess || busy) return;
 
+            var mySeq = ++refreshSeq;
+
             var r = await sb.from("support_messages").select("*").order("id", { ascending: true });
-            if (r.error || !r.data) return;
+            if (r.error || !r.data || mySeq !== refreshSeq) return;   // a newer check is already running: ignore this older answer
 
             var changed = r.data.length !== msgs.length;
             msgs = r.data;
 
+            if (changed && msgs.length && msgs[msgs.length - 1].sender === "admin") typingUntil = 0;
+
             var unread = msgs.filter(function (m) { return m.sender === "admin" && !m.read_by_user; }).length;
+
+            if (panel.hidden && unread > lastUnread) {
+                fab.classList.add("ping");
+                setTimeout(function () { fab.classList.remove("ping"); }, 3000);
+            }
+            lastUnread = unread;
+
             setBadge(unread);
 
             if (!panel.hidden) {
@@ -1426,13 +1541,56 @@
 
             input.value = "";
             await refresh();
+
+            if (!adminOnline && msgs.length) botNoticeAfter = msgs[msgs.length - 1].id;
+
             render();
         });
 
+        // tell the admin when the user is typing
+        input.addEventListener("input", function () {
+            if (!rtChannel || Date.now() - lastTypingSent < 2500) return;
+            lastTypingSent = Date.now();
+            try { rtChannel.send({ type: "broadcast", event: "typing", payload: { from: "user" } }); } catch (e) {}
+        });
+
+        function startRealtime() {
+
+            try {
+
+                var uid = sess.user.id;
+
+                // new messages for THIS user arrive instantly; typing signals use the same private-by-name channel
+                rtChannel = sb.channel("chat:" + uid)
+                    .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages", filter: "user_id=eq." + uid },
+                        function () { refresh(); })
+                    .on("broadcast", { event: "typing" }, function (p) {
+                        if (p && p.payload && p.payload.from === "admin") {
+                            typingUntil = Date.now() + 3500;
+                            if (!panel.hidden) render();
+                            setTimeout(function () { if (!panel.hidden && Date.now() >= typingUntil) render(); }, 3700);
+                        }
+                    })
+                    .subscribe();
+
+                // is an admin online right now?
+                var pres = sb.channel("support-presence")
+                    .on("presence", { event: "sync" }, function () {
+                        var st = pres.presenceState();
+                        adminOnline = Object.keys(st).length > 0;
+                        setStatus();
+                    })
+                    .subscribe();
+
+            } catch (e) {}
+        }
+
         if (sess) {
             refresh();
-            setInterval(function () { if (!document.hidden) refresh(); }, panel.hidden ? 40000 : 10000);
-            setInterval(function () { if (!document.hidden && !panel.hidden) refresh(); }, 8000);
+            startRealtime();
+            setStatus();
+            // safety net: if live delivery is ever blocked, check again every 15 seconds
+            setInterval(function () { if (!document.hidden) refresh(); }, 15000);
         }
     }
 
