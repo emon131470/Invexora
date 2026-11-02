@@ -323,6 +323,7 @@
         $("panelView").hidden = false;
         $("adminName").textContent = ctx.profile ? ctx.profile.email : "";
         await refresh();
+        startAdminRealtime();
         clearInterval(window._pollTimer);
         window._pollTimer = setInterval(function () { if (!document.hidden) pollSupport(); }, 20000);
     }
@@ -372,6 +373,7 @@
     $("logoutBtn").addEventListener("click", async function () {
         clearInterval(window._pollTimer);
         clearInterval(threadTimer);
+        stopAdminRealtime();
         await ctx.sb.auth.signOut();
         showLogin();
     });
@@ -693,6 +695,96 @@
     }
 
 
+    /* ----- LIVE chat: instant messages, sound, typing, online status ----- */
+    var msgCh = null, presenceCh = null, typingCh = null, typingName = "", typingHide = null, lastTypingSent = 0;
+    var titleBase = document.title, newCount = 0;
+
+    function beep() {
+        try {
+            var C = window.AudioContext || window.webkitAudioContext;
+            if (!C) return;
+            var ac = new C(), o = ac.createOscillator(), g = ac.createGain();
+            o.type = "sine"; o.frequency.value = 880; g.gain.value = 0.07;
+            o.connect(g); g.connect(ac.destination); o.start();
+            setTimeout(function () { try { o.stop(); ac.close(); } catch (e) {} }, 200);
+        } catch (e) {}
+    }
+
+    function stopAdminRealtime() {
+        [msgCh, presenceCh, typingCh].forEach(function (c) { try { if (c) ctx.sb.removeChannel(c); } catch (e) {} });
+        msgCh = presenceCh = typingCh = null; typingName = "";
+    }
+
+    function startAdminRealtime() {
+
+        try {
+
+            stopAdminRealtime();
+
+            // every new user message reaches the admin instantly
+            msgCh = ctx.sb.channel("admin-support")
+                .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages" },
+                    function (p) { onNewSupportMsg(p && p.new); })
+                .subscribe();
+
+            // users see "Support team is online" while an admin has this panel open
+            presenceCh = ctx.sb.channel("support-presence", { config: { presence: { key: "admin-" + ctx.session.user.id } } });
+            presenceCh.subscribe(function (status) {
+                if (status === "SUBSCRIBED") presenceCh.track({ admin: true, at: Date.now() });
+            });
+
+        } catch (e) {}
+    }
+
+    async function onNewSupportMsg(m) {
+
+        if (!m || m.sender !== "user") return;
+
+        beep();
+
+        if (document.hidden) {
+            newCount++;
+            document.title = "(" + newCount + ") New message - " + titleBase;
+        }
+
+        toast("New message from a user.", true);
+
+        await loadThreads();
+        if (currentTab === "support") renderSupport();
+        if (currentTab === "support" && openUser === m.user_id) await loadThread(openUser, true);
+    }
+
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) { newCount = 0; document.title = titleBase; }
+    });
+
+    function joinTyping(userId) {
+
+        if (typingName === "chat:" + userId && typingCh) return;
+
+        try { if (typingCh) ctx.sb.removeChannel(typingCh); } catch (e) {}
+
+        typingName = "chat:" + userId;
+
+        typingCh = ctx.sb.channel(typingName)
+            .on("broadcast", { event: "typing" }, function (p) {
+                if (!p || !p.payload || p.payload.from !== "user") return;
+                var note = $("typingNote");
+                if (!note) return;
+                note.textContent = "User is typing...";
+                clearTimeout(typingHide);
+                typingHide = setTimeout(function () { var n = $("typingNote"); if (n) n.textContent = ""; }, 3500);
+            })
+            .subscribe();
+    }
+
+    $("detailBox").addEventListener("input", function (e) {
+        if (!e.target.closest("#replyForm") || !typingCh || Date.now() - lastTypingSent < 2500) return;
+        lastTypingSent = Date.now();
+        try { typingCh.send({ type: "broadcast", event: "typing", payload: { from: "admin" } }); } catch (x) {}
+    });
+
+
     /* ----- support ----- */
     function renderSupport(q) {
 
@@ -745,7 +837,7 @@
                     '</div><div class="bmeta">' + (mine ? "Support team" : esc(who)) + ' · ' + fmtTime(m.created_at) + '</div></div>';
         });
 
-        html += '</div><form class="reply-box" id="replyForm"><textarea rows="2" maxlength="1000" placeholder="Write a reply or the solution..."></textarea>' +
+        html += '</div><div class="small" id="typingNote" style="min-height:18px;margin-top:8px;"></div><form class="reply-box" id="replyForm"><textarea rows="2" maxlength="1000" placeholder="Write a reply or the solution..."></textarea>' +
                 '<button type="submit" class="btn" id="replyBtn">Send reply</button></form></div>';
 
         box.innerHTML = html;
@@ -753,6 +845,8 @@
 
         var th = box.querySelector(".thread");
         if (wasBottom) th.scrollTop = th.scrollHeight;
+
+        joinTyping(userId);
 
         if (!silent) box.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -966,7 +1060,11 @@
     $("searchBox").addEventListener("input", render);
 
     $("detailBox").addEventListener("click", function (e) {
-        if (e.target.closest("[data-close-detail]")) { $("detailBox").innerHTML = ""; openUser = null; }
+        if (e.target.closest("[data-close-detail]")) {
+            $("detailBox").innerHTML = ""; openUser = null;
+            try { if (typingCh) ctx.sb.removeChannel(typingCh); } catch (x) {}
+            typingCh = null; typingName = "";
+        }
     });
 
     $("detailBox").addEventListener("submit", async function (e) {
