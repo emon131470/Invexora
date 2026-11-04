@@ -162,6 +162,32 @@
         .badge.Off       { background: rgba(255,196,71,0.14); color: #ffc447; }
         .hint { color: var(--faint); font-size: 12px; margin-top: 4px; }
         @media (max-width: 700px) { .cms-grid { grid-template-columns: 1fr; } }
+        .tier-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; }
+        .tier-badge.bronze  { background: rgba(205,127,50,0.18); color: #e6a26a; border: 1px solid rgba(205,127,50,0.45); }
+        .tier-badge.silver  { background: rgba(200,210,225,0.14); color: #d6dde9; border: 1px solid rgba(200,210,225,0.4); }
+        .tier-badge.gold    { background: rgba(255,196,71,0.16); color: #ffd466; border: 1px solid rgba(255,196,71,0.5); }
+        .tier-badge.diamond { background: rgba(120,220,255,0.14); color: #8fe6ff; border: 1px solid rgba(120,220,255,0.5); }
+        .badge.Verified   { background: rgba(200,255,30,0.12); color: #c8ff1e; }
+        .badge.Unverified { background: #1f2a40; color: #aab3c7; }
+        .chips { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px 18px; }
+        .chip { padding: 7px 16px; border-radius: 20px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+        .chip.active { border-color: var(--gold); color: var(--gold-light); background: var(--surface-2); }
+        .kyc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+        .kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 14px; font-size: 14px; }
+        .kv dt { color: var(--faint); }
+        .kv dd { color: var(--text); word-break: break-word; }
+        .kyc-imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .kyc-img { border: 1px solid var(--line-strong); border-radius: 12px; overflow: hidden; background: #0b0f19; cursor: zoom-in; }
+        .kyc-img img { display: block; width: 100%; height: 170px; object-fit: cover; }
+        .kyc-img span { display: block; padding: 6px 10px; font-size: 12px; color: var(--faint); }
+        .kyc-img.wide { grid-column: 1 / -1; }
+        .lightbox { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.88); cursor: zoom-out; }
+        .lightbox[hidden] { display: none; }
+        .lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; }
+        .warn-note { margin: 10px 0; padding: 10px 14px; border-radius: 10px; background: rgba(255,196,71,0.12); color: #ffd98a; font-size: 13px; }
+        .reject-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+        .reject-row input { flex: 1; min-width: 220px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: #0b0f19; color: var(--text); font-family: inherit; font-size: 14px; outline: none; }
+        @media (max-width: 900px) { .kyc-grid { grid-template-columns: 1fr; } }
     </style>
 
 </head>
@@ -227,6 +253,8 @@
                 <button class="tab active" data-tab="deposits">Deposits</button>
                 <button class="tab" data-tab="withdrawals">Withdrawals</button>
                 <button class="tab" data-tab="users">Users</button>
+                <button class="tab" data-tab="referrals">Referrals</button>
+                <button class="tab" data-tab="verification">Verification <span class="tab-badge" id="kycBadge" hidden>0</span></button>
                 <button class="tab" data-tab="support">Support <span class="tab-badge" id="supportBadge" hidden>0</span></button>
                 <button class="tab" data-tab="content">Content</button>
                 <button class="tab" data-tab="banners">Banners</button>
@@ -246,6 +274,7 @@
             <label for="minWithdraw">Minimum withdrawal (USD)</label>
             <input type="number" class="cell-input" id="minWithdraw" min="0" step="0.01">
             <label class="chk"><input type="checkbox" id="returnPrincipal"> Return the invested amount when a plan ends</label>
+            <label class="chk"><input type="checkbox" id="requireKyc"> Only verified accounts can withdraw</label>
             <button class="btn" id="saveSettings">Save</button>
         </div>
 
@@ -254,13 +283,16 @@
 </div>
 
 
+<div class="lightbox" id="lightbox" hidden><img alt="" id="lightboxImg"></div>
+
 <script src="app.js"></script>
 
 <script>
 
     var ctx = null;
     var currentTab = "deposits";
-    var cache = { deposits: [], withdrawals: [], users: [], plans: [], settings: null, threads: [], audit: [], content: {}, banners: [] };
+    var cache = { deposits: [], withdrawals: [], users: [], plans: [], settings: null, threads: [], audit: [], content: {}, banners: [], rd: null, kyc: [] };
+    var refFilter = "referrers", kycFilter = "pending";
     var openUser = null;        // user id of the open support thread
     var threadTimer = null;
 
@@ -425,7 +457,21 @@
 
         if (currentTab === "users") {
             r = await sb.from("profiles").select("*").order("created_at", { ascending: false });
-            if (!r.error) cache.users = r.data;
+            if (!r.error) {
+                cache.users = r.data;
+                await loadRefData();
+                var kr = await sb.from("kyc_submissions").select("*").order("submitted_at", { ascending: false });
+                cache.kyc = kr.error ? [] : kr.data;
+            }
+        }
+
+        if (currentTab === "referrals" || currentTab === "verification") {
+            await loadRefData();
+            if (currentTab === "verification") {
+                r = await sb.from("kyc_submissions").select("*").order("submitted_at", { ascending: false });
+                if (!r.error) cache.kyc = r.data; else cache.kyc = [];
+                if (r.error && /relation|does not exist|schema cache|Unknown table/i.test(r.error.message)) r = null;
+            }
         }
 
         if (currentTab === "plans") {
@@ -437,6 +483,8 @@
                 cache.settings = st.data;
                 $("minWithdraw").value = st.data.min_withdraw;
                 $("returnPrincipal").checked = !!st.data.return_principal;
+                $("requireKyc").checked = !!st.data.require_kyc_withdraw;
+                $("requireKyc").disabled = (st.data.require_kyc_withdraw === undefined);
             }
         }
 
@@ -470,7 +518,7 @@
     }
 
     async function refresh() {
-        await Promise.all([loadStats(), loadTab(), currentTab === "support" ? Promise.resolve() : loadThreads()]);
+        await Promise.all([loadStats(), loadTab(), currentTab === "support" ? Promise.resolve() : loadThreads(), loadKycBadge()]);
         render();
     }
 
@@ -498,6 +546,8 @@
         if (currentTab === "activity")    renderActivity(q);
         if (currentTab === "content")     renderContentTab();
         if (currentTab === "banners")     renderBanners(q);
+        if (currentTab === "referrals")   renderReferrals(q);
+        if (currentTab === "verification") renderVerification(q);
     }
 
     function matches(obj, q) {
@@ -569,7 +619,7 @@
 
         if (!rows.length) { $("tableBox").innerHTML = '<div class="empty">No users.</div>'; return; }
 
-        var html = "<table><thead><tr><th>NAME</th><th>EMAIL</th><th>PHONE</th><th>REFERRAL CODE</th><th>REFERRED BY</th><th>ROLE</th><th>STATUS</th><th>JOINED</th><th>ACTION</th></tr></thead><tbody>";
+        var html = "<table><thead><tr><th>NAME</th><th>EMAIL</th><th>PHONE</th><th>REFERRAL CODE</th><th>REFERRED BY</th><th>ROLE</th><th>LEVEL</th><th>VERIFIED</th><th>STATUS</th><th>JOINED</th><th>ACTION</th></tr></thead><tbody>";
 
         rows.forEach(function (u) {
             var ref = u.referred_by && byId[u.referred_by] ? byId[u.referred_by].email : "-";
@@ -589,6 +639,8 @@
                 "<td><b>" + esc(u.referral_code) + "</b></td>" +
                 "<td class='muted'>" + esc(ref) + "</td>" +
                 "<td class='muted'>" + esc(u.role) + "</td>" +
+                "<td>" + (cache.rd && cache.rd.tiers.length && cache.rd.stats[u.id] ? tierBadge(cache.rd.stats[u.id].tier) : "<span class='small'>-</span>") + "</td>" +
+                "<td>" + (u.role === "admin" ? "<span class='small'>-</span>" : kycBadge(u.kyc_status)) + "</td>" +
                 "<td><span class='badge " + st + "'>" + st + "</span></td>" +
                 "<td class='muted'>" + fmtDate(u.created_at) + "</td>" +
                 "<td>" + act + "</div></td>" +
@@ -653,6 +705,18 @@
               '<div><small>Pending withdrawal</small><strong>' + money(s.pending_wd) + '</strong></div>' +
               '<div><small>Status</small><strong>' + (u && u.suspended ? "Suspended" : "Active") + '</strong></div>' +
             '</div>';
+
+        if (cache.rd && cache.rd.stats[id]) {
+            var st2 = cache.rd.stats[id], up2 = u && u.referred_by && cache.rd.byId[u.referred_by] ? cache.rd.byId[u.referred_by] : null;
+            html += '<div class="mini-stats">' +
+              '<div><small>Level</small><strong>' + (cache.rd.tiers.length ? esc(st2.tier.name) : "-") + '</strong></div>' +
+              '<div><small>Verification</small><strong>' + (u && typeof u.kyc_status === "string" ? STATUS_LABEL[u.kyc_status] : "-") + '</strong></div>' +
+              '<div><small>People referred</small><strong>' + st2.referred.length + '</strong></div>' +
+              '<div><small>Commission earned</small><strong>' + money(st2.commission) + '</strong></div></div>' +
+              '<p class="small" style="font-size:13px;">Phone: <b>' + esc(u ? (u.phone || "-") : "-") + '</b> &middot; Referral code: <b>' + esc(u ? u.referral_code : "-") + '</b> &middot; Referred by: <b>' +
+              (up2 ? esc(nameOf(up2)) + " (" + esc(up2.email) + ")" : "nobody") + '</b>' +
+              (u && latestKyc(id) ? ' &middot; <a href="#" style="color:var(--gold);" data-open-kyc-tab="' + esc(id) + '">Open verification</a>' : '') + '</p>';
+        }
 
         html += '<div class="sub-h">INVESTMENTS</div>';
         if (!inv.length) html += '<div class="empty">No investments.</div>';
@@ -865,6 +929,8 @@
         withdrawal_approved: "Withdrawal approved", withdrawal_rejected: "Withdrawal rejected",
         plan_updated: "Plan updated", settings_min_withdraw: "Minimum withdrawal changed",
         settings_return_principal: "Return-principal setting changed",
+        kyc_approved: "Verification approved", kyc_rejected: "Verification rejected", kyc_viewed: "Identity documents opened",
+        tier_updated: "Level rules changed", settings_require_kyc: "Verified-only withdrawals setting changed",
         user_suspended: "User suspended", user_unsuspended: "User unsuspended", support_reply: "Support reply sent",
         content_updated: "Website text edited", banner_created: "Banner created", banner_updated: "Banner updated", banner_deleted: "Banner deleted"
     };
@@ -1041,6 +1107,374 @@
     }
 
 
+
+    /* ===== REFERRALS, LEVELS AND VERIFICATION ===== */
+    var STATUS_LABEL = { none: "Not verified", pending: "Pending", approved: "Verified", rejected: "Rejected" };
+    var STATUS_BADGE = { none: "Unverified", pending: "Pending", approved: "Verified", rejected: "Rejected" };
+
+    function kycBadge(st) {
+        if (typeof st !== "string") return "<span class='small'>-</span>";
+        return "<span class='badge " + STATUS_BADGE[st] + "'>" + STATUS_LABEL[st] + "</span>";
+    }
+
+    function tierBadge(t) {
+        return "<span class='tier-badge " + esc(String(t.name).toLowerCase()) + "'>" + esc(t.name) + "</span>";
+    }
+
+    function ageOf(dob) {
+        var d = new Date(dob + "T00:00:00"), n = new Date();
+        if (isNaN(d)) return "";
+        var a = n.getFullYear() - d.getFullYear();
+        if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) a--;
+        return a;
+    }
+
+    function maskDoc(n) {
+        n = String(n || "");
+        return n.length > 4 ? n.slice(0, 2) + "****" + n.slice(-2) : "****";
+    }
+
+    // loads everyone's money and referral facts once and works out each person's level
+    async function loadRefData() {
+
+        var sb = ctx.sb;
+        var r = await Promise.all([
+            sb.from("profiles").select("*"),
+            sb.from("deposits").select("id, user_id, plan_id, amount, status, created_at, plans(name)"),
+            sb.from("referral_earnings").select("*"),
+            sb.from("tiers").select("*").order("id")
+        ]);
+
+        if (r[0].error) { toast("Could not load users: " + r[0].error.message, false); return null; }
+
+        var rd = { profiles: r[0].data || [], deposits: r[1].data || [], earnings: r[2].data || [], tiers: r[3].error ? [] : (r[3].data || []), byId: {}, stats: {} };
+
+        rd.profiles.forEach(function (p) {
+            rd.byId[p.id] = p;
+            rd.stats[p.id] = { own: 0, referred: [], referredInvestors: 0, referredInvested: 0, commission: 0 };
+        });
+
+        rd.deposits.forEach(function (d) { if (d.status === "approved" && rd.stats[d.user_id]) rd.stats[d.user_id].own += Number(d.amount); });
+        rd.profiles.forEach(function (p) { if (p.referred_by && rd.stats[p.referred_by]) rd.stats[p.referred_by].referred.push(p.id); });
+
+        Object.keys(rd.stats).forEach(function (id) {
+            var s = rd.stats[id];
+            s.referred.forEach(function (rid) {
+                var inv = rd.stats[rid] ? rd.stats[rid].own : 0;
+                if (inv > 0) { s.referredInvestors++; s.referredInvested += inv; }
+            });
+        });
+
+        rd.earnings.forEach(function (e) { if (rd.stats[e.referrer_id]) rd.stats[e.referrer_id].commission += Number(e.amount); });
+
+        Object.keys(rd.stats).forEach(function (id) {
+            var s = rd.stats[id], t = INVTier.compute(rd.tiers, s.own, s.referredInvestors);
+            s.tier = t.tier; s.next = t.next;
+        });
+
+        cache.rd = rd;
+        return rd;
+    }
+
+    async function loadKycBadge() {
+        var r = await ctx.sb.from("kyc_submissions").select("id").eq("status", "pending");
+        var n = (!r.error && r.data) ? r.data.length : 0;
+        $("kycBadge").textContent = n > 99 ? "99+" : n;
+        $("kycBadge").hidden = n < 1;
+    }
+
+    /* ----- referrals tab ----- */
+    function renderReferrals(q) {
+
+        var rd = cache.rd;
+        if (!rd) { $("tableBox").innerHTML = '<div class="empty">Could not load referral data.</div>'; return; }
+
+        var list = rd.profiles.filter(function (p) {
+            var s = rd.stats[p.id];
+            return (refFilter === "all" || s.referred.length > 0) && matches(p, q);
+        }).sort(function (a, b) {
+            var x = rd.stats[a.id], y = rd.stats[b.id];
+            return (y.referred.length - x.referred.length) || (y.referredInvested - x.referredInvested);
+        });
+
+        var html = '<div class="chips"><button class="chip' + (refFilter === "referrers" ? " active" : "") + '" data-ref-filter="referrers">Only people who referred</button>' +
+                   '<button class="chip' + (refFilter === "all" ? " active" : "") + '" data-ref-filter="all">All users</button></div>';
+
+        if (!list.length) {
+            html += '<div class="empty">No referrals yet.</div>';
+        } else {
+            html += "<table style='min-width:980px'><thead><tr><th>USER</th><th>LEVEL</th><th>REFERRED</th><th>INVESTED</th><th>REFERRED INVESTMENT</th><th>COMMISSION EARNED</th><th>OWN INVESTMENT</th><th>ACTION</th></tr></thead><tbody>";
+            list.forEach(function (p) {
+                var s = rd.stats[p.id];
+                html += "<tr><td>" + userLabel(p) + "</td>" +
+                    "<td>" + (rd.tiers.length ? tierBadge(s.tier) : "<span class='small'>-</span>") + "</td>" +
+                    "<td><b>" + s.referred.length + "</b></td>" +
+                    "<td class='muted'>" + s.referredInvestors + " of " + s.referred.length + "</td>" +
+                    "<td>" + money(s.referredInvested) + "</td>" +
+                    "<td><b>" + money(s.commission) + "</b></td>" +
+                    "<td class='muted'>" + money(s.own) + "</td>" +
+                    "<td><div class='act'><button data-ref-detail='" + esc(p.id) + "'>Details</button></div></td></tr>";
+            });
+            html += "</tbody></table>";
+        }
+
+        // level rules
+        if (rd.tiers.length) {
+            html += '<div class="panel" style="margin:18px"><div class="panel-head"><h3>Level rules</h3></div>' +
+                '<p class="small" style="margin-bottom:12px;font-size:13px;">A user gets the highest level where EITHER their own approved investment OR the number of referred people who invested reaches the number below.</p>' +
+                '<table style="min-width:560px"><thead><tr><th>LEVEL</th><th>OWN INVESTMENT ($)</th><th>REFERRED PEOPLE WHO INVEST</th><th></th></tr></thead><tbody>';
+            rd.tiers.forEach(function (t) {
+                var first = t.id === 1;
+                html += "<tr data-tier='" + t.id + "'><td>" + tierBadge(t) + "</td>" +
+                    "<td><input class='cell-input' data-tf='inv' type='number' step='1' min='1' value='" + Number(t.min_invested) + "'" + (first ? " disabled" : "") + "></td>" +
+                    "<td><input class='cell-input' data-tf='ref' type='number' step='1' min='1' value='" + Number(t.min_referrals) + "'" + (first ? " disabled" : "") + "></td>" +
+                    "<td>" + (first ? "<span class='small'>Everyone starts here</span>" : "<button class='btn' data-save-tier='" + t.id + "' style='padding:7px 14px;'>Save</button>") + "</td></tr>";
+            });
+            html += "</tbody></table></div>";
+        } else {
+            html += '<div class="empty">Level rules are not installed yet (run the update 5 SQL).</div>';
+        }
+
+        $("tableBox").innerHTML = html;
+    }
+
+    function showReferralDetail(id) {
+
+        var rd = cache.rd, p = rd.byId[id], s = rd.stats[id];
+        if (!p) return;
+
+        var up = p.referred_by && rd.byId[p.referred_by] ? rd.byId[p.referred_by] : null;
+
+        var html = '<div class="panel"><div class="panel-head"><h3>' + esc(nameOf(p)) + ' <span class="small">' + esc(p.email) + '</span></h3>' +
+            '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div>' +
+            '<div class="mini-stats">' +
+              '<div><small>Level</small><strong>' + (rd.tiers.length ? esc(s.tier.name) : "-") + '</strong></div>' +
+              '<div><small>People referred</small><strong>' + s.referred.length + '</strong></div>' +
+              '<div><small>Of them invested</small><strong>' + s.referredInvestors + '</strong></div>' +
+              '<div><small>Commission earned</small><strong>' + money(s.commission) + '</strong></div>' +
+            '</div>' +
+            '<p class="small" style="font-size:13px;margin-bottom:6px;">Referral code: <b>' + esc(p.referral_code) + '</b> &middot; Joined with the code of: <b>' + (up ? esc(nameOf(up)) + " (" + esc(up.email) + ")" : "nobody") + '</b>' +
+            (rd.tiers.length && s.next ? ' &middot; Next level: <b>' + esc(s.next.name) + '</b> at ' + money(s.next.min_invested) + ' invested or ' + Number(s.next.min_referrals) + ' referred investors' : '') + '</p>';
+
+        html += '<div class="sub-h">PEOPLE THIS USER REFERRED</div>';
+
+        if (!s.referred.length) {
+            html += '<div class="empty">Nobody yet.</div>';
+        } else {
+            html += '<div class="table-box"><table><thead><tr><th>USER</th><th>JOINED</th><th>APPROVED DEPOSITS</th><th>PENDING</th><th>COMMISSION FOR THIS USER</th><th>STATUS</th></tr></thead><tbody>';
+            s.referred.forEach(function (rid) {
+                var u = rd.byId[rid];
+                var approved = 0, pending = 0;
+                rd.deposits.forEach(function (d) {
+                    if (d.user_id !== rid) return;
+                    if (d.status === "approved") approved += Number(d.amount);
+                    if (d.status === "pending") pending += Number(d.amount);
+                });
+                var com = rd.earnings.filter(function (e) { return e.referrer_id === id && e.referred_id === rid; })
+                                     .reduce(function (n, e) { return n + Number(e.amount); }, 0);
+                html += '<tr><td>' + userLabel(u) + '</td><td class="muted">' + fmtDate(u.created_at) + '</td><td><b>' + money(approved) + '</b></td><td class="muted">' + money(pending) +
+                        '</td><td><b>' + money(com) + '</b></td><td><span class="badge ' + (approved > 0 ? "Approved" : "Pending") + '">' + (approved > 0 ? "Invested" : "Not invested yet") + '</span></td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+
+        $("detailBox").innerHTML = html + '</div>';
+        $("detailBox").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    /* ----- verification tab ----- */
+    function latestKyc(userId) {
+        return cache.kyc.filter(function (k) { return k.user_id === userId; })[0] || null;      // newest first
+    }
+
+    function renderVerification(q) {
+
+        var rd = cache.rd;
+        if (!rd) { $("tableBox").innerHTML = '<div class="empty">Could not load users.</div>'; return; }
+
+        if (rd.profiles.length && typeof rd.profiles[0].kyc_status !== "string") {
+            $("tableBox").innerHTML = '<div class="empty">Verification is not installed yet. Run the update 5 SQL in Supabase.</div>';
+            return;
+        }
+
+        var people = rd.profiles.filter(function (p) { return p.role !== "admin"; });
+        var counts = { all: people.length, approved: 0, pending: 0, rejected: 0, none: 0 };
+        people.forEach(function (p) { counts[p.kyc_status] = (counts[p.kyc_status] || 0) + 1; });
+
+        var chips = [["pending", "Pending"], ["approved", "Verified"], ["rejected", "Rejected"], ["none", "Not verified"], ["all", "All"]];
+        var html = '<div class="chips">' + chips.map(function (c) {
+            return '<button class="chip' + (kycFilter === c[0] ? " active" : "") + '" data-kyc-filter="' + c[0] + '">' + c[1] + ' (' + (counts[c[0]] || 0) + ')</button>';
+        }).join("") + '</div>';
+
+        var rows = people.filter(function (p) { return (kycFilter === "all" || p.kyc_status === kycFilter) && matches(p, q); });
+
+        if (!rows.length) { $("tableBox").innerHTML = html + '<div class="empty">Nobody in this list.</div>'; return; }
+
+        html += "<table style='min-width:900px'><thead><tr><th>USER</th><th>PHONE</th><th>STATUS</th><th>DOCUMENT</th><th>SENT</th><th>ACTION</th></tr></thead><tbody>";
+
+        rows.forEach(function (p) {
+            var k = latestKyc(p.id);
+            html += "<tr><td>" + userLabel(p) + "</td>" +
+                "<td class='muted'>" + esc(p.phone || "-") + "</td>" +
+                "<td>" + kycBadge(p.kyc_status) + "</td>" +
+                "<td class='muted'>" + (k ? esc(k.doc_type === "nid" ? "NID" : "Passport") + " · " + esc(maskDoc(k.doc_number)) : "-") + "</td>" +
+                "<td class='muted'>" + (k ? fmtTime(k.submitted_at) : "-") + "</td>" +
+                "<td><div class='act'>" + (k ? "<button class='ok' data-kyc-open='" + esc(p.id) + "'>" + (p.kyc_status === "pending" ? "Review" : "View") + "</button>" : "<span class='small'>No documents</span>") + "</div></td></tr>";
+        });
+
+        $("tableBox").innerHTML = html + "</tbody></table>";
+    }
+
+    async function openKycReview(userId) {
+
+        var rd = cache.rd, p = rd.byId[userId], k = latestKyc(userId);
+        if (!p || !k) return;
+
+        $("detailBox").innerHTML = '<div class="panel"><div class="empty">Loading documents...</div></div>';
+
+        var sb = ctx.sb;
+        var res = await Promise.all([
+            sb.rpc("admin_user_summary", { p_user: userId }),
+            sb.storage.from("kyc").createSignedUrl(k.doc_front_path, 300),
+            k.doc_back_path ? sb.storage.from("kyc").createSignedUrl(k.doc_back_path, 300) : Promise.resolve(null),
+            sb.storage.from("kyc").createSignedUrl(k.selfie_path, 300)
+        ]);
+
+        sb.rpc("admin_log_kyc_view", { p_id: k.id });          // every viewing is written to the activity log
+
+        var sum = res[0].data || {}, s = rd.stats[userId];
+        var up = p.referred_by && rd.byId[p.referred_by] ? rd.byId[p.referred_by] : null;
+        var url = function (r) { return r && r.data ? r.data.signedUrl : ""; };
+
+        var img = function (u, label, wide) {
+            return u ? '<div class="kyc-img' + (wide ? " wide" : "") + '" data-zoom="' + esc(u) + '"><img src="' + esc(u) + '" alt="' + esc(label) + '"><span>' + esc(label) + ' (click to enlarge)</span></div>'
+                     : '<div class="kyc-img' + (wide ? " wide" : "") + '"><span>' + esc(label) + ': could not load</span></div>';
+        };
+
+        var sameName = String(k.full_name).trim().toLowerCase() === nameOf(p).trim().toLowerCase();
+        var history = cache.kyc.filter(function (x) { return x.user_id === userId; });
+
+        var html = '<div class="panel"><div class="panel-head"><h3>Verification: ' + esc(nameOf(p)) + ' ' + kycBadge(p.kyc_status) + '</h3>' +
+            '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div>' +
+            '<div class="kyc-grid"><div>' +
+              '<div class="sub-h" style="margin-top:0">ACCOUNT INFORMATION</div><dl class="kv">' +
+                '<dt>Name (registered)</dt><dd>' + esc(nameOf(p)) + '</dd>' +
+                '<dt>Email</dt><dd>' + esc(p.email) + '</dd>' +
+                '<dt>Phone</dt><dd>' + esc(p.phone || "-") + '</dd>' +
+                '<dt>Joined</dt><dd>' + fmtDate(p.created_at) + '</dd>' +
+                '<dt>Referral code</dt><dd>' + esc(p.referral_code) + '</dd>' +
+                '<dt>Referred by</dt><dd>' + (up ? esc(nameOf(up)) + " (" + esc(up.email) + ")" : "nobody") + '</dd>' +
+                '<dt>People referred</dt><dd>' + (s ? s.referred.length : 0) + '</dd>' +
+                '<dt>Level</dt><dd>' + (s && rd.tiers.length ? tierBadge(s.tier) : "-") + '</dd>' +
+                '<dt>Account status</dt><dd>' + (p.suspended ? "Suspended" : "Active") + '</dd>' +
+                '<dt>Total deposited</dt><dd>' + money(sum.deposited) + '</dd>' +
+                '<dt>Active investment</dt><dd>' + money(sum.active) + '</dd>' +
+                '<dt>Balance</dt><dd>' + money(sum.available) + '</dd>' +
+              '</dl>' +
+              '<div class="sub-h">SUBMITTED INFORMATION</div><dl class="kv">' +
+                '<dt>Full name</dt><dd>' + esc(k.full_name) + '</dd>' +
+                '<dt>Date of birth</dt><dd>' + esc(k.date_of_birth) + ' (age ' + ageOf(k.date_of_birth) + ')</dd>' +
+                '<dt>Document</dt><dd>' + esc(k.doc_type === "nid" ? "National ID (NID)" : "Passport") + '</dd>' +
+                '<dt>Document number</dt><dd><b>' + esc(k.doc_number) + '</b></dd>' +
+                '<dt>Sent on</dt><dd>' + fmtTime(k.submitted_at) + '</dd>' +
+                '<dt>Consent given</dt><dd>' + fmtTime(k.consent_at) + '</dd>' +
+                '<dt>Result</dt><dd>' + esc(cap(k.status)) + (k.reject_reason ? ' - ' + esc(k.reject_reason) : '') + '</dd>' +
+              '</dl>' +
+              (sameName ? '' : '<div class="warn-note">The name on the document is different from the registered name.</div>') +
+            '</div><div>' +
+              '<div class="sub-h" style="margin-top:0">DOCUMENT AND LIVE PHOTO</div><div class="kyc-imgs">' +
+                img(url(res[1]), k.doc_type === "nid" ? "NID front" : "Passport page", false) +
+                (k.doc_back_path ? img(url(res[2]), "NID back", false) : '') +
+                img(url(res[3]), "Live face photo", !k.doc_back_path ? false : true) +
+              '</div></div></div>';
+
+        if (k.status === "pending") {
+            html += '<div class="reject-row"><button class="btn" data-kyc-approve="' + esc(k.id) + '">Approve verification</button>' +
+                    '<input type="text" id="kycReason" maxlength="200" placeholder="If rejecting, write the reason for the user">' +
+                    '<button class="btn btn-ghost" data-kyc-reject="' + esc(k.id) + '">Reject</button></div>';
+        }
+
+        if (history.length > 1) {
+            html += '<div class="sub-h">EARLIER REQUESTS</div><div class="table-box"><table style="min-width:520px"><thead><tr><th>SENT</th><th>DOCUMENT</th><th>RESULT</th><th>REASON</th></tr></thead><tbody>' +
+                history.filter(function (x) { return x.id !== k.id; }).map(function (x) {
+                    return '<tr><td class="muted">' + fmtTime(x.submitted_at) + '</td><td class="muted">' + esc(x.doc_type) + '</td><td>' + esc(cap(x.status)) + '</td><td class="muted">' + esc(x.reject_reason || "-") + '</td></tr>';
+                }).join("") + '</tbody></table></div>';
+        }
+
+        $("detailBox").innerHTML = html + '</div>';
+        $("detailBox").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    $("lightbox").addEventListener("click", function () { $("lightbox").hidden = true; });
+    $("detailBox").addEventListener("click", function (e) {
+        var z = e.target.closest("[data-zoom]");
+        if (z) { $("lightboxImg").src = z.getAttribute("data-zoom"); $("lightbox").hidden = false; }
+    });
+
+    async function reviewKyc(id, approve) {
+
+        var reason = approve ? null : ($("kycReason") ? $("kycReason").value.trim() : "");
+
+        if (!approve && (!reason || reason.length < 3)) { toast("Please write a short reason for the user.", false); return; }
+
+        var r = await ctx.sb.rpc("admin_review_kyc", { p_id: id, p_approve: approve, p_reason: reason });
+
+        if (r.error) { toast(r.error.message, false); return; }
+
+        toast(approve ? "Verification approved." : "Verification rejected.", true);
+        $("detailBox").innerHTML = "";
+        await loadTab();
+        await loadKycBadge();
+        render();
+    }
+
+    $("tableBox").addEventListener("click", async function (e) {
+
+        var f = e.target.closest("button[data-ref-filter]");
+        if (f) { refFilter = f.getAttribute("data-ref-filter"); renderReferrals($("searchBox").value.trim().toLowerCase()); return; }
+
+        var rdb = e.target.closest("button[data-ref-detail]");
+        if (rdb) { showReferralDetail(rdb.getAttribute("data-ref-detail")); return; }
+
+        var kf = e.target.closest("button[data-kyc-filter]");
+        if (kf) { kycFilter = kf.getAttribute("data-kyc-filter"); renderVerification($("searchBox").value.trim().toLowerCase()); return; }
+
+        var ko = e.target.closest("button[data-kyc-open]");
+        if (ko) { openKycReview(ko.getAttribute("data-kyc-open")); return; }
+
+        var st = e.target.closest("button[data-save-tier]");
+        if (st) {
+            var row = st.closest("tr");
+            var rt = await ctx.sb.rpc("admin_update_tier", {
+                p_id: Number(st.getAttribute("data-save-tier")),
+                p_min_invested: parseFloat(row.querySelector("[data-tf='inv']").value),
+                p_min_referrals: parseInt(row.querySelector("[data-tf='ref']").value, 10)
+            });
+            toast(rt.error ? rt.error.message : "Level rule saved.", !rt.error);
+            if (!rt.error) { await loadRefData(); renderReferrals($("searchBox").value.trim().toLowerCase()); }
+        }
+    });
+
+    $("detailBox").addEventListener("click", async function (e) {
+
+        var go = e.target.closest("[data-open-kyc-tab]");
+        if (go) {
+            e.preventDefault();
+            var uid2 = go.getAttribute("data-open-kyc-tab");
+            kycFilter = "all";
+            document.querySelector('.tab[data-tab="verification"]').click();
+            await new Promise(function (r) { setTimeout(r, 400); });
+            openKycReview(uid2);
+            return;
+        }
+
+        var a = e.target.closest("button[data-kyc-approve]");
+        if (a) { reviewKyc(a.getAttribute("data-kyc-approve"), true); return; }
+        var r = e.target.closest("button[data-kyc-reject]");
+        if (r) { reviewKyc(r.getAttribute("data-kyc-reject"), false); }
+    });
+
+
     /* ===== EVENTS ===== */
     document.querySelectorAll(".tab").forEach(function (btn) {
         btn.addEventListener("click", async function () {
@@ -1176,7 +1610,15 @@
 
         var r2 = await ctx.sb.rpc("admin_set_return_principal", { p_value: $("returnPrincipal").checked });
 
-        toast(r2.error ? r2.error.message : "Settings saved.", !r2.error);
+        if (r2.error) { toast(r2.error.message, false); return; }
+
+        if (cache.settings && cache.settings.require_kyc_withdraw !== undefined && $("requireKyc").checked !== !!cache.settings.require_kyc_withdraw) {
+            var r3 = await ctx.sb.rpc("admin_set_require_kyc", { p_value: $("requireKyc").checked });
+            if (r3.error) { toast(r3.error.message, false); return; }
+            cache.settings.require_kyc_withdraw = $("requireKyc").checked;
+        }
+
+        toast("Settings saved.", true);
     });
 
 
