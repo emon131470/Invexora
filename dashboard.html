@@ -28,6 +28,8 @@
 
     <p class="form-error" id="loadError" role="alert"></p>
 
+    <div class="kyc-banner" id="kycBanner" hidden></div>
+
     <div class="notice-bar" id="suspendNote" hidden>Your account is suspended, so deposits and withdrawals are paused. Please contact support using the chat button.</div>
 
     <!-- DASHBOARD MENU -->
@@ -37,6 +39,7 @@
         <button data-view="withdraw">Withdraw</button>
         <button data-view="referral">Referral</button>
         <button data-view="history">Transactions</button>
+        <button data-view="verification">Verification</button>
     </nav>
 
     <!-- ================= OVERVIEW ================= -->
@@ -145,6 +148,8 @@
             <p>Share your code. When someone registers with it and buys a plan, you earn a commission based on that plan.</p>
         </div>
 
+        <div class="tier-box" id="tierBox" hidden></div>
+
         <div class="ref-grid">
 
             <div class="ref-code-card">
@@ -190,7 +195,104 @@
 
     </section>
 
+    <!-- ================= VERIFICATION ================= -->
+    <section class="dash-view" id="view-verification" hidden>
+
+        <div class="view-head">
+            <h2>Account Verification</h2>
+            <p>Verify your identity once. Verified accounts avoid problems with deposits and withdrawals later.</p>
+        </div>
+
+        <div class="kyc-status" id="kycStatusBox"></div>
+
+        <div class="deposit-box" id="kycFormBox" hidden>
+
+            <div class="notice-bar demo-note">INVEXORA is a demo platform. For your safety, please use sample or dummy documents while testing, not your real identity documents.</div>
+
+            <form id="kycForm" novalidate>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="kycName">Full name (as on the document)</label>
+                        <input type="text" id="kycName" maxlength="100" autocomplete="name" placeholder="Full name">
+                    </div>
+                    <div class="form-group">
+                        <label for="kycDob">Date of birth</label>
+                        <input type="date" id="kycDob">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="kycType">Document type</label>
+                        <select id="kycType">
+                            <option value="nid">National ID (NID)</option>
+                            <option value="passport">Passport</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="kycNumber">Document number</label>
+                        <input type="text" id="kycNumber" maxlength="40" placeholder="Number on the document">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="kycFront" id="kycFrontLabel">Photo of the NID (front side)</label>
+                    <input type="file" id="kycFront" accept="image/jpeg,image/png,image/*">
+                    <p class="form-hint">A clear photo, all four corners visible. JPG or PNG.</p>
+                </div>
+
+                <div class="form-group" id="kycBackWrap">
+                    <label for="kycBack">Photo of the NID (back side)</label>
+                    <input type="file" id="kycBack" accept="image/jpeg,image/png,image/*">
+                </div>
+
+                <div class="form-group">
+                    <label>Live face photo</label>
+                    <div class="selfie-box">
+                        <video id="selfieVideo" playsinline muted hidden></video>
+                        <img id="selfiePreview" alt="Your live photo" hidden>
+                        <div class="selfie-placeholder" id="selfieHolder">The photo must be taken now with your camera. Uploading an old photo is not allowed.</div>
+                        <canvas id="selfieCanvas" hidden></canvas>
+                    </div>
+                    <div class="quick-amounts">
+                        <button type="button" class="chip" id="camStart">Start camera</button>
+                        <button type="button" class="chip" id="camShot" hidden>Take photo</button>
+                        <button type="button" class="chip" id="camRetake" hidden>Retake</button>
+                    </div>
+                    <p class="form-hint">Face the camera in good light. No sunglasses, mask or hat.</p>
+                </div>
+
+                <label class="consent">
+                    <input type="checkbox" id="kycConsent">
+                    <span>I confirm the information is true and I agree that INVEXORA stores these documents privately and that administrators can review them. See the <a href="privacy.html" target="_blank">Privacy Policy</a>.</span>
+                </label>
+
+                <p class="form-error" id="kycError" role="alert"></p>
+                <p class="form-ok" id="kycOk" role="status"></p>
+
+                <button type="submit" class="full-btn" id="kycSubmit">Submit for verification</button>
+
+            </form>
+
+        </div>
+
+    </section>
+
 </main>
+
+<div class="kyc-modal" id="kycModal" hidden role="dialog" aria-modal="true" aria-labelledby="kycModalTitle">
+    <div class="kyc-modal-box">
+        <div class="kyc-modal-icon">🛡️</div>
+        <h2 id="kycModalTitle">Verify your account</h2>
+        <p>Your account is not verified yet. If you do not verify your account, you may face problems with transactions later.</p>
+        <p class="kyc-modal-sub">It takes about two minutes: ID or passport, date of birth and a live face photo.</p>
+        <div class="kyc-modal-actions">
+            <button type="button" class="btn btn-primary btn-large" id="kycModalGo">Verify now</button>
+            <button type="button" class="btn btn-outline btn-large" id="kycModalLater">Remind me later</button>
+        </div>
+    </div>
+</div>
 
 <script src="app.js"></script>
 
@@ -291,6 +393,7 @@
         S.plans   = r[6].data;
 
         renderAll();
+        if (typeof renderTier === "function") renderTier();
     }
 
     function logsOf(invId) {
@@ -516,6 +619,9 @@
         if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
     }
 
+    // links such as dashboard.html#verification also work when you are already on the dashboard
+    window.addEventListener("hashchange", function () { showView((location.hash || "#overview").slice(1)); });
+
     $("dashMenu").addEventListener("click", function (e) {
         var b = e.target.closest("button[data-view]");
         if (b) showView(b.getAttribute("data-view"));
@@ -607,12 +713,282 @@
     });
 
 
+
+    /* ===== ACCOUNT VERIFICATION + LEVEL ===== */
+    var kycLatest = null;
+    var tiersList = [];
+    var camStream = null, selfieBlob = null;
+
+    function kycStatus() {
+        var st = ctx && ctx.profile ? ctx.profile.kyc_status : undefined;
+        return typeof st === "string" ? st : null;       // null = the verification update is not installed yet
+    }
+
+    function renderKycBanner() {
+
+        var box = $("kycBanner"), st = kycStatus();
+
+        if (!st || st === "approved") { box.hidden = true; return; }
+
+        var msg = {
+            none:     '⚠ Your account is not verified. Verify it now to avoid problems with deposits and withdrawals later. <a href="#verification" class="kyc-link" data-go="verification">Verify now</a>',
+            pending:  '⏳ Your verification is under review. We will tell you here as soon as an admin has checked it.',
+            rejected: '❌ Your verification was not accepted' + (kycLatest && kycLatest.reject_reason ? ': ' + esc(kycLatest.reject_reason) : '') + '. <a href="#verification" class="kyc-link" data-go="verification">Submit again</a>'
+        }[st];
+
+        box.className = "kyc-banner " + st;
+        box.innerHTML = msg;
+        box.hidden = false;
+    }
+
+    function renderKycStatus() {
+
+        var st = kycStatus(), box = $("kycStatusBox");
+
+        if (!st) {
+            box.innerHTML = '<div class="kyc-card none"><b>Verification is not available yet.</b><p>Please try again later.</p></div>';
+            $("kycFormBox").hidden = true;
+            return;
+        }
+
+        var when = kycLatest ? fmtDate(kycLatest.submitted_at) : "";
+        var html = {
+            none:     '<div class="kyc-card none"><b>Not verified</b><p>Submit your details below to verify your account.</p></div>',
+            pending:  '<div class="kyc-card pending"><b>Under review</b><p>You sent your documents on ' + esc(when) + '. An admin will check them soon.</p></div>',
+            approved: '<div class="kyc-card approved"><b>✓ Verified</b><p>Your account is verified. Thank you.</p></div>',
+            rejected: '<div class="kyc-card rejected"><b>Not accepted</b><p>' + esc(kycLatest && kycLatest.reject_reason ? kycLatest.reject_reason : "Please check your documents and submit again.") + '</p></div>'
+        }[st];
+
+        box.innerHTML = html;
+        $("kycFormBox").hidden = !(st === "none" || st === "rejected");
+    }
+
+    function renderVerifiedBadge() {
+        if (kycStatus() === "approved" && !document.getElementById("verifiedBadge")) {
+            $("welcomeUser").insertAdjacentHTML("afterend", '<span class="tier-badge verified" id="verifiedBadge">✓ Verified</span>');
+        }
+    }
+
+    function renderTier() {
+
+        var box = $("tierBox");
+
+        if (!tiersList.length) { box.hidden = true; return; }
+
+        var own = S.deps.filter(function (d) { return d.status === "approved"; }).reduce(function (n, d) { return n + Number(d.amount); }, 0);
+        var seen = {};
+        S.refs.forEach(function (r) { if (r.r_status === "approved") seen[r.r_email] = true; });
+        var invested = Object.keys(seen).length;
+
+        var t = INVTier.compute(tiersList, own, invested);
+
+        var next = t.next
+            ? 'Next level <b>' + esc(t.next.name) + '</b>: invest ' + money(t.next.min_invested) + ' or have ' + Number(t.next.min_referrals) + ' referred people who invest.'
+            : 'You have reached the highest level.';
+
+        box.innerHTML = '<div class="tier-row"><span class="tier-badge ' + esc(t.tier.name.toLowerCase()) + '">' + esc(t.tier.name) + '</span>' +
+                        '<span class="tier-text">Your level. You invested ' + money(own) + ' and ' + invested + ' referred ' + (invested === 1 ? 'person has' : 'people have') + ' invested.</span></div>' +
+                        '<p class="tier-next">' + next + '</p>';
+        box.hidden = false;
+    }
+
+    async function loadKyc() {
+
+        var st = kycStatus();
+
+        if (st) {
+            var r = await ctx.sb.from("kyc_submissions").select("*").order("submitted_at", { ascending: false }).limit(1);
+            kycLatest = (!r.error && r.data && r.data[0]) ? r.data[0] : null;
+        }
+
+        var t = await ctx.sb.from("tiers").select("*").order("id");
+        tiersList = (!t.error && t.data) ? t.data : [];
+
+        renderKycBanner();
+        renderKycStatus();
+        renderVerifiedBadge();
+        if (S.summary) renderTier();
+    }
+
+    /* ----- image helpers ----- */
+    function toJpegBlob(source, w, h, maxSide, quality) {
+        return new Promise(function (resolve, reject) {
+            var scale = Math.min(1, maxSide / Math.max(w, h));
+            var c = document.createElement("canvas");
+            c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+            c.getContext("2d").drawImage(source, 0, 0, c.width, c.height);
+            c.toBlob(function (b) { b ? resolve(b) : reject(new Error("Could not process the image")); }, "image/jpeg", quality);
+        });
+    }
+
+    function fileToJpegBlob(file) {
+        return new Promise(function (resolve, reject) {
+            if (!file || file.type.indexOf("image/") !== 0) { reject(new Error("Please choose an image file (JPG or PNG)")); return; }
+            var url = URL.createObjectURL(file), img = new Image();
+            img.onload = function () {
+                toJpegBlob(img, img.naturalWidth, img.naturalHeight, 1400, 0.85).then(function (b) { URL.revokeObjectURL(url); resolve(b); }, reject);
+            };
+            img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Could not read that image")); };
+            img.src = url;
+        });
+    }
+
+    function stopCamera() {
+        if (camStream) { camStream.getTracks().forEach(function (t) { t.stop(); }); camStream = null; }
+        $("selfieVideo").hidden = true;
+        $("camShot").hidden = true;
+    }
+
+    async function startCamera() {
+
+        $("kycError").textContent = "";
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            $("kycError").textContent = "Your browser cannot open the camera here. Please use a modern browser on https.";
+            return;
+        }
+
+        try {
+            camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960 } }, audio: false });
+        } catch (e) {
+            $("kycError").textContent = "Camera access was blocked. Please allow the camera in your browser and try again. A live photo is required.";
+            return;
+        }
+
+        var v = $("selfieVideo");
+        v.srcObject = camStream;
+        v.hidden = false;
+        try { await v.play(); } catch (e) {}
+
+        $("selfiePreview").hidden = true;
+        $("selfieHolder").hidden = true;
+        $("camStart").hidden = true;
+        $("camRetake").hidden = true;
+        $("camShot").hidden = false;
+    }
+
+    async function takeSelfie() {
+
+        var v = $("selfieVideo");
+
+        if (!v.videoWidth) { $("kycError").textContent = "The camera is not ready yet. Wait a second and try again."; return; }
+
+        try {
+            selfieBlob = await toJpegBlob(v, v.videoWidth, v.videoHeight, 960, 0.85);
+        } catch (e) { $("kycError").textContent = e.message; return; }
+
+        $("selfiePreview").src = URL.createObjectURL(selfieBlob);
+        $("selfiePreview").hidden = false;
+        stopCamera();
+        $("camRetake").hidden = false;
+        $("kycError").textContent = "";
+    }
+
+    function updateKycForm() {
+        var nid = $("kycType").value === "nid";
+        $("kycBackWrap").hidden = !nid;
+        $("kycFrontLabel").textContent = nid ? "Photo of the NID (front side)" : "Photo of the passport (page with your photo)";
+    }
+
+    $("kycType").addEventListener("change", updateKycForm);
+    $("camStart").addEventListener("click", startCamera);
+    $("camShot").addEventListener("click", takeSelfie);
+    $("camRetake").addEventListener("click", function () { selfieBlob = null; startCamera(); });
+    window.addEventListener("pagehide", stopCamera);
+
+    $("kycForm").addEventListener("submit", async function (e) {
+
+        e.preventDefault();
+
+        var err = $("kycError"), ok = $("kycOk");
+        err.textContent = ""; ok.textContent = "";
+
+        var name = $("kycName").value.trim(), dob = $("kycDob").value, type = $("kycType").value, num = $("kycNumber").value.trim();
+        var front = $("kycFront").files[0], back = $("kycBack").files[0];
+
+        if (name.length < 2) { err.textContent = "Please enter your full name."; return; }
+        if (!dob) { err.textContent = "Please enter your date of birth."; return; }
+        if (num.length < 4) { err.textContent = "Please enter the document number."; return; }
+        if (!front) { err.textContent = "Please add the document photo."; return; }
+        if (type === "nid" && !back) { err.textContent = "Please add the back side of your NID."; return; }
+        if (!selfieBlob) { err.textContent = "Please take your live face photo with the camera."; return; }
+        if (!$("kycConsent").checked) { err.textContent = "Please tick the consent box."; return; }
+
+        var btn = $("kycSubmit");
+        btn.disabled = true;
+        ok.textContent = "Uploading... please wait.";
+
+        try {
+
+            var uid = ctx.session.user.id, stamp = Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+            var paths = { front: uid + "/" + stamp + "-front.jpg", back: uid + "/" + stamp + "-back.jpg", selfie: uid + "/" + stamp + "-selfie.jpg" };
+
+            var frontBlob = await fileToJpegBlob(front);
+            var backBlob  = type === "nid" ? await fileToJpegBlob(back) : null;
+
+            async function put(path, blob) {
+                var r = await ctx.sb.storage.from("kyc").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+                if (r.error) throw new Error(r.error.message);
+            }
+
+            await put(paths.front, frontBlob);
+            if (backBlob) await put(paths.back, backBlob);
+            await put(paths.selfie, selfieBlob);
+
+            var r2 = await ctx.sb.rpc("submit_kyc", {
+                p_full_name: name, p_dob: dob, p_doc_type: type, p_doc_number: num,
+                p_front: paths.front, p_back: backBlob ? paths.back : null, p_selfie: paths.selfie, p_consent: true
+            });
+
+            if (r2.error) throw new Error(r2.error.message);
+
+            ctx.profile.kyc_status = "pending";
+            selfieBlob = null;
+            $("kycForm").reset();
+            $("selfiePreview").hidden = true;
+            $("selfieHolder").hidden = false;
+            $("camStart").hidden = false;
+            $("camRetake").hidden = true;
+            ok.textContent = "";
+            await loadKyc();
+
+        } catch (ex) {
+            ok.textContent = "";
+            err.textContent = ex.message || "Something went wrong. Please try again.";
+        }
+
+        btn.disabled = false;
+    });
+
+    document.addEventListener("click", function (e) {
+        var g = e.target.closest("[data-go]");
+        if (g) { e.preventDefault(); showView(g.getAttribute("data-go")); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    });
+
+    /* ----- the notice shown right after registering ----- */
+    function maybeShowKycModal() {
+
+        var flag = false;
+        try { flag = sessionStorage.getItem("inv_after_register") === "1"; sessionStorage.removeItem("inv_after_register"); } catch (e) {}
+
+        if (!flag || kycStatus() !== "none") return;
+
+        $("kycModal").hidden = false;
+    }
+
+    $("kycModalGo").addEventListener("click", function () { $("kycModal").hidden = true; showView("verification"); window.scrollTo({ top: 0 }); });
+    $("kycModalLater").addEventListener("click", function () { $("kycModal").hidden = true; });
+
+
     /* ===== START ===== */
     IPReady.then(function (c) {
 
         ctx = c;
 
         if (ctx.profile && ctx.profile.suspended) $("suspendNote").hidden = false;
+
+        updateKycForm();
+        loadKyc().then(maybeShowKycModal);
         getWdMethod = bindMethods("wdMethods");
 
         showView((location.hash || "#overview").slice(1));
