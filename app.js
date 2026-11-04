@@ -144,7 +144,14 @@
                     { id: "gold",    name: "Gold",    min_amount: 100, max_amount: 500,  duration_days: 120, daily_rate: 1.5, referral_rate: 8,  featured: true,  active: true, sort_order: 3 },
                     { id: "diamond", name: "Diamond", min_amount: 500, max_amount: 1000, duration_days: 180, daily_rate: 2.0, referral_rate: 10, featured: false, active: true, sort_order: 4 }
                 ],
-                settings: { id: 1, min_withdraw: 5, return_principal: true },
+                settings: { id: 1, min_withdraw: 5, return_principal: true, require_kyc_withdraw: false },
+                tiers: [
+                    { id: 1, name: "Bronze",  min_invested: 0,    min_referrals: 0 },
+                    { id: 2, name: "Silver",  min_invested: 100,  min_referrals: 3 },
+                    { id: 3, name: "Gold",    min_invested: 500,  min_referrals: 10 },
+                    { id: 4, name: "Diamond", min_invested: 1000, min_referrals: 25 }
+                ],
+                kyc_submissions: [], kyc_files: {},
                 deposits: [], investments: [], profit_logs: [], referral_earnings: [], withdrawals: [],
                 audit_log: [], support_messages: [], site_content: [], banners: [],
                 seq: 0
@@ -159,6 +166,9 @@
                     d.support_messages = d.support_messages || [];
                     d.site_content = d.site_content || [];
                     d.banners = d.banners || [];
+                    d.kyc_submissions = d.kyc_submissions || [];
+                    d.kyc_files = d.kyc_files || {};
+                    d.tiers = d.tiers || seed().tiers;
                     return d;
                 }
             } catch (e) {}
@@ -417,6 +427,7 @@
                 var amount = a.p_amount;
 
                 if (m.suspended) throw new Error("Your account is suspended. Please contact support.");
+                if (db.settings.require_kyc_withdraw && m.kyc_status !== "approved") throw new Error("Please verify your account (Verification menu) before withdrawing");
                 if (amount == null || isNaN(amount)) throw new Error("Please enter an amount");
                 if (METHODS.indexOf(a.p_method) < 0) throw new Error("Please choose a payment method");
 
@@ -651,6 +662,77 @@
                 return null;
             },
 
+            submit_kyc: function (db, a) {
+                var m = needLoginRow(db);
+                var prefix = m.id + "/";
+                var nm = String(a.p_full_name || "").trim();
+                var num = String(a.p_doc_number || "").replace(/[\s-]/g, "").toUpperCase();
+                if (m.kyc_status === "approved") throw new Error("Your account is already verified");
+                if (m.kyc_status === "pending") throw new Error("Your verification is already under review");
+                if (!a.p_consent) throw new Error("Please accept the consent box to continue");
+                if (nm.length < 2 || nm.length > 100) throw new Error("Please enter your full name");
+                var dob = a.p_dob ? new Date(a.p_dob + "T00:00:00") : null;
+                var now = new Date();
+                var limit18 = new Date(now.getFullYear() - 18, now.getMonth(), now.getDate());
+                var limit100 = new Date(now.getFullYear() - 100, now.getMonth(), now.getDate());
+                if (!dob || isNaN(dob) || dob > limit18 || dob < limit100) throw new Error("You must be at least 18 years old (check your date of birth)");
+                if (a.p_doc_type !== "nid" && a.p_doc_type !== "passport") throw new Error("Please choose NID or Passport");
+                if (!/^[A-Z0-9]{4,30}$/.test(num)) throw new Error("Please enter a valid document number");
+                function okPath(p) { return typeof p === "string" && p.indexOf(prefix) === 0 && p.indexOf("..") < 0; }
+                if (!okPath(a.p_front)) throw new Error("The document photo is missing");
+                if (a.p_doc_type === "nid" && !okPath(a.p_back)) throw new Error("Please add the back side of your NID");
+                if (!okPath(a.p_selfie)) throw new Error("The live face photo is missing");
+                var row = {
+                    id: uid(), user_id: m.id, full_name: nm, date_of_birth: a.p_dob, doc_type: a.p_doc_type, doc_number: num,
+                    doc_front_path: a.p_front, doc_back_path: a.p_doc_type === "nid" ? a.p_back : null, selfie_path: a.p_selfie,
+                    status: "pending", reject_reason: null, consent_at: nowIso(), submitted_at: nowIso(), reviewed_at: null, reviewed_by: null
+                };
+                db.kyc_submissions.push(row);
+                m.kyc_status = "pending";
+                return row.id;
+            },
+
+            admin_review_kyc: function (db, a) {
+                needAdmin(db);
+                var k = db.kyc_submissions.filter(function (x) { return x.id === a.p_id; })[0];
+                if (!k) throw new Error("Verification request not found");
+                if (k.status !== "pending") throw new Error("This request was already reviewed");
+                var reason = String(a.p_reason || "").trim();
+                if (!a.p_approve && reason.length < 3) throw new Error("Please write a short reason for the user");
+                k.status = a.p_approve ? "approved" : "rejected";
+                k.reject_reason = a.p_approve ? null : reason.slice(0, 200);
+                k.reviewed_at = nowIso(); k.reviewed_by = me(db).id;
+                var u = db.profiles.filter(function (p) { return p.id === k.user_id; })[0];
+                if (u) u.kyc_status = k.status;
+                audit(db, a.p_approve ? "kyc_approved" : "kyc_rejected", "kyc_submissions", k.id, { user_id: k.user_id, reason: reason || null });
+                return null;
+            },
+
+            admin_log_kyc_view: function (db, a) {
+                needAdmin(db);
+                var k = db.kyc_submissions.filter(function (x) { return x.id === a.p_id; })[0];
+                if (k) audit(db, "kyc_viewed", "kyc_submissions", k.id, { user_id: k.user_id });
+                return null;
+            },
+
+            admin_update_tier: function (db, a) {
+                needAdmin(db);
+                if (a.p_id === 1) throw new Error("The first level (Bronze) is for everyone and cannot be changed");
+                if (!(a.p_min_invested > 0) || !(a.p_min_referrals > 0)) throw new Error("Both numbers must be more than 0");
+                var t = db.tiers.filter(function (x) { return x.id === a.p_id; })[0];
+                if (!t) throw new Error("Level not found");
+                t.min_invested = a.p_min_invested; t.min_referrals = a.p_min_referrals;
+                audit(db, "tier_updated", "tiers", t.id, { min_invested: a.p_min_invested, min_referrals: a.p_min_referrals });
+                return null;
+            },
+
+            admin_set_require_kyc: function (db, a) {
+                needAdmin(db);
+                db.settings.require_kyc_withdraw = !!a.p_value;
+                audit(db, "settings_require_kyc", "settings", 1, { require_kyc_withdraw: !!a.p_value });
+                return null;
+            },
+
             admin_support_threads: function (db) {
                 needAdmin(db);
                 var out = [];
@@ -756,7 +838,8 @@
                 investments: db.investments, profit_logs: db.profit_logs,
                 referral_earnings: db.referral_earnings, withdrawals: db.withdrawals,
                 audit_log: db.audit_log, support_messages: db.support_messages,
-                site_content: db.site_content, banners: db.banners
+                site_content: db.site_content, banners: db.banners,
+                kyc_submissions: db.kyc_submissions, tiers: db.tiers
             }[t];
 
             if (!source) return { data: null, error: { message: "Unknown table: " + t } };
@@ -769,6 +852,7 @@
                     return !!r.active && (!r.starts_at || r.starts_at <= nowIso_) && (!r.ends_at || r.ends_at >= nowIso_);
                 }
                 if (!m) return false;
+                if (t === "tiers") return true;
                 if (t === "audit_log") return admin;
                 if (admin) return true;
                 if (t === "profiles") return r.id === m.id;
@@ -865,7 +949,7 @@
                         referral_code: genCode(db),
                         referred_by: ref ? ref.id : null,
                         role: (first || ADMINS.indexOf(email) > -1) ? "admin" : "user",
-                        suspended: false, suspended_at: null,
+                        suspended: false, suspended_at: null, kyc_status: "none",
                         created_at: nowIso()
                     });
                 }
@@ -892,6 +976,36 @@
 
             isLocal: true,
             auth: auth,
+
+            storage: {
+                from: function (bucket) {
+                    return {
+                        upload: async function (path, blob, opts) {
+                            var db = load(), m = me(db);
+                            if (!m) return { data: null, error: { message: "Please login first" } };
+                            if (path.indexOf(m.id + "/") !== 0) return { data: null, error: { message: "new row violates row-level security policy" } };
+                            if (!blob || blob.size > 2097152) return { data: null, error: { message: "The file is too large (maximum 2 MB)" } };
+                            if (["image/jpeg", "image/png"].indexOf(blob.type) < 0) return { data: null, error: { message: "mime type not supported" } };
+                            if (db.kyc_files[path]) return { data: null, error: { message: "The resource already exists" } };
+                            var dataUrl = await new Promise(function (res, rej) {
+                                var fr = new FileReader();
+                                fr.onload = function () { res(fr.result); };
+                                fr.onerror = function () { rej(new Error("Could not read the file")); };
+                                fr.readAsDataURL(blob);
+                            });
+                            db.kyc_files[path] = dataUrl;
+                            save(db);
+                            return { data: { path: path }, error: null };
+                        },
+                        createSignedUrl: async function (path) {
+                            var db = load(), m = me(db);
+                            if (!m || (m.role !== "admin" && path.indexOf(m.id + "/") !== 0)) return { data: null, error: { message: "Object not found" } };
+                            var u = db.kyc_files[path];
+                            return u ? { data: { signedUrl: u }, error: null } : { data: null, error: { message: "Object not found" } };
+                        }
+                    };
+                }
+            },
 
             channel: makeChannel,
             removeChannel: function (ch) { return ch && ch.unsubscribe ? ch.unsubscribe() : Promise.resolve("ok"); },
@@ -1320,6 +1434,7 @@
                     return;
                 }
 
+                try { sessionStorage.setItem("inv_after_register", "1"); } catch (x) {}
                 showMsg(regForm, "Email verified. Your account is ready. Opening your dashboard...", true);
                 setTimeout(function () { window.location.href = "dashboard.html"; }, 900);
             });
@@ -1732,6 +1847,20 @@
         renderBanners(data.banners);
     }
 
+
+    // highest level whose numbers are reached: own approved investment OR number of referred people who invested
+    root.INVTier = {
+        compute: function (tiers, ownInvested, referredInvestors) {
+            var list = (tiers || []).slice().sort(function (a, b) { return a.id - b.id; });
+            var cur = list[0] || { id: 1, name: "Bronze" };
+            list.forEach(function (t) {
+                if (t.id === 1) return;
+                if ((t.min_invested > 0 && ownInvested >= t.min_invested) || (t.min_referrals > 0 && referredInvestors >= t.min_referrals)) cur = t;
+            });
+            var next = list.filter(function (t) { return t.id > cur.id; })[0] || null;
+            return { tier: cur, next: next };
+        }
+    };
 
     /* ---------- start ---------- */
 
