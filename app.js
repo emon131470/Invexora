@@ -149,7 +149,7 @@
                     { id: 1, name: "Bronze",  min_invested: 0,    min_referrals: 0 },
                     { id: 2, name: "Silver",  min_invested: 100,  min_referrals: 3 },
                     { id: 3, name: "Gold",    min_invested: 500,  min_referrals: 10 },
-                    { id: 4, name: "Diamond", min_invested: 1000, min_referrals: 25 }
+                    { id: 4, name: "Platinum", min_invested: 1000, min_referrals: 25 }
                 ],
                 kyc_submissions: [], kyc_files: {},
                 deposits: [], investments: [], profit_logs: [], referral_earnings: [], withdrawals: [],
@@ -1862,6 +1862,129 @@
         }
     };
 
+
+    /* =====================================================
+       PROFILE MENU  (round avatar in the top corner; its colour shows the user's level)
+       ===================================================== */
+
+    function initials(name) {
+        var p = String(name || "").trim().split(/\s+/).filter(Boolean);
+        if (!p.length) return "U";
+        return (p[0].charAt(0) + (p.length > 1 ? p[p.length - 1].charAt(0) : "")).toUpperCase();
+    }
+
+    function initProfileMenu(sess, profile) {
+
+        var host = document.querySelector(".user-menu");
+        if (!host || !sess || document.body.hasAttribute("data-nochat")) return;
+
+        var full = profile ? ((profile.first_name || "") + " " + (profile.last_name || "")).trim() : "";
+        if (!full) full = sess.user.email;
+
+        var state = { kyc: (profile && typeof profile.kyc_status === "string") ? profile.kyc_status : null, tier: null };
+
+        // the level is remembered for a minute so every page shows the same colour straight away
+        try {
+            var c = JSON.parse(sessionStorage.getItem("inv_level") || "null");
+            if (c && c.uid === sess.user.id && Date.now() - c.t < 60000) state.tier = c.tier;
+        } catch (e) {}
+
+        var wrap = document.createElement("div");
+        wrap.className = "pm";
+        wrap.innerHTML =
+            '<button type="button" class="pm-btn" aria-haspopup="true" aria-expanded="false" aria-label="Open profile menu">' +
+                '<span class="pm-avatar" data-av>' + esc(initials(full)) + '<i class="pm-dot" hidden></i></span>' +
+                '<span class="pm-name">' + esc(full) + '</span><span class="pm-caret">▾</span>' +
+            '</button>' +
+            '<div class="pm-menu" hidden role="menu">' +
+                '<div class="pm-top">' +
+                    '<span class="pm-avatar big" data-av>' + esc(initials(full)) + '</span>' +
+                    '<div class="pm-who"><b>' + esc(full) + '</b><small>' + esc(sess.user.email) + '</small><div class="pm-badges"></div></div>' +
+                '</div>' +
+                '<a class="pm-item" role="menuitem" href="dashboard.html#profile"><span>👤</span> My profile</a>' +
+                '<a class="pm-item" role="menuitem" href="dashboard.html#verification"><span>🛡️</span> Verification <em class="pm-tag" hidden>Action needed</em></a>' +
+                '<a class="pm-item" role="menuitem" href="dashboard.html#referral"><span>⭐</span> Level &amp; referral</a>' +
+                '<a class="pm-item" role="menuitem" href="dashboard.html#history"><span>🧾</span> Transactions</a>' +
+                '<button type="button" class="pm-item" role="menuitem" data-chat><span>💬</span> Support chat</button>' +
+                '<div class="pm-sep"></div>' +
+                '<button type="button" class="pm-item pm-logout" role="menuitem"><span>⏻</span> Logout</button>' +
+            '</div>';
+
+        host.appendChild(wrap);
+
+        // the old name text and Logout button are replaced by this menu
+        ["welcomeUser", "planUser"].forEach(function (id) { var e = document.getElementById(id); if (e) e.style.display = "none"; });
+        host.querySelectorAll(":scope > button").forEach(function (b) {
+            if (/logout/i.test(b.getAttribute("onclick") || "")) b.style.display = "none";
+        });
+
+        var btn = wrap.querySelector(".pm-btn"), menu = wrap.querySelector(".pm-menu");
+
+        function paint() {
+
+            var key = state.tier ? String(state.tier.name).toLowerCase() : "none";
+
+            wrap.querySelectorAll("[data-av]").forEach(function (a) {
+                a.className = a.className.replace(/\btier-\S+/g, "").trim() + " tier-" + key;
+            });
+
+            var kycText = { none: "Not verified", pending: "Under review", approved: "Verified", rejected: "Rejected" };
+            var badges = '';
+            if (state.tier) badges += '<span class="tier-badge ' + esc(key) + '">' + esc(state.tier.name) + '</span>';
+            if (state.kyc) badges += '<span class="tier-badge kyc-' + esc(state.kyc) + '">' + (state.kyc === "approved" ? "✓ " : "") + kycText[state.kyc] + '</span>';
+            wrap.querySelector(".pm-badges").innerHTML = badges;
+
+            var need = state.kyc === "none" || state.kyc === "rejected";
+            wrap.querySelector(".pm-dot").hidden = !need;
+            wrap.querySelector(".pm-tag").hidden = !need;
+            btn.title = state.tier ? ("Level: " + state.tier.name) : "";
+        }
+
+        function open(v) {
+            menu.hidden = !v;
+            btn.setAttribute("aria-expanded", v ? "true" : "false");
+        }
+
+        btn.addEventListener("click", function (e) { e.stopPropagation(); open(menu.hidden); });
+        document.addEventListener("click", function (e) { if (!wrap.contains(e.target)) open(false); });
+        document.addEventListener("keydown", function (e) { if (e.key === "Escape") open(false); });
+        menu.querySelectorAll("a.pm-item").forEach(function (a) { a.addEventListener("click", function () { open(false); }); });
+        menu.querySelector(".pm-logout").addEventListener("click", function () { logout(); });
+        menu.querySelector("[data-chat]").addEventListener("click", function () {
+            open(false);
+            var f = document.querySelector(".chat-fab"), p = document.querySelector(".chat-panel");
+            if (f && p && p.hidden) f.click();
+        });
+
+        paint();
+
+        // work out the level (own approved investment OR referred people who invested)
+        (async function () {
+            try {
+                var r = await Promise.all([
+                    sb.from("deposits").select("amount, status"),
+                    sb.rpc("my_referrals"),
+                    sb.from("tiers").select("*").order("id")
+                ]);
+                if (r[2].error || !r[2].data || !r[2].data.length) return;
+                var own = (r[0].data || []).filter(function (d) { return d.status === "approved"; }).reduce(function (n, d) { return n + Number(d.amount); }, 0);
+                var seen = {};
+                (r[1].data || []).forEach(function (x) { if (x.r_status === "approved") seen[x.r_email] = true; });
+                var t = INVTier.compute(r[2].data, own, Object.keys(seen).length);
+                state.tier = { id: t.tier.id, name: t.tier.name };
+                try { sessionStorage.setItem("inv_level", JSON.stringify({ uid: sess.user.id, t: Date.now(), tier: state.tier })); } catch (e) {}
+                paint();
+            } catch (e) {}
+        })();
+
+        // other parts of the page can refresh the badge (for example after sending the documents)
+        root.INVProfile = {
+            setKyc: function (k) { state.kyc = k; paint(); },
+            setTier: function (t) { state.tier = t; paint(); }
+        };
+    }
+
+
     /* ---------- start ---------- */
 
     injectStyles();
@@ -1923,6 +2046,7 @@
         reveal();
 
         try { initChat(sess); } catch (e) { try { console.error(e); } catch (x) {} }
+        try { initProfileMenu(sess, profile); } catch (e) { try { console.error(e); } catch (x) {} }
         try { applyCms().catch(function (e) { try { console.error(e); } catch (x) {} }); } catch (e) {}
 
         return { sb: sb, session: sess, profile: profile };
