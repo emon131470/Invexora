@@ -195,6 +195,18 @@
 
     </section>
 
+    <!-- ================= PROFILE ================= -->
+    <section class="dash-view" id="view-profile" hidden>
+
+        <div class="view-head">
+            <h2>My profile</h2>
+            <p>Your details, your level and your verification status.</p>
+        </div>
+
+        <div class="profile-card" id="profileCard"><div class="empty">Loading...</div></div>
+
+    </section>
+
     <!-- ================= VERIFICATION ================= -->
     <section class="dash-view" id="view-verification" hidden>
 
@@ -394,6 +406,7 @@
 
         renderAll();
         if (typeof renderTier === "function") renderTier();
+        if (typeof renderProfile === "function") renderProfile();
     }
 
     function logsOf(invId) {
@@ -764,9 +777,77 @@
     }
 
     function renderVerifiedBadge() {
-        if (kycStatus() === "approved" && !document.getElementById("verifiedBadge")) {
-            $("welcomeUser").insertAdjacentHTML("afterend", '<span class="tier-badge verified" id="verifiedBadge">✓ Verified</span>');
+        if (window.INVProfile && kycStatus()) INVProfile.setKyc(kycStatus());
+    }
+
+    function renderProfile() {
+
+        var box = $("profileCard"), p = (ctx && ctx.profile) || {};
+        if (!ctx) return;
+
+        var name = ((p.first_name || "") + " " + (p.last_name || "")).trim() || (ctx.session ? ctx.session.user.email : "User");
+        var own = S.deps.filter(function (d) { return d.status === "approved"; }).reduce(function (n, d) { return n + Number(d.amount); }, 0);
+        var seen = {};
+        S.refs.forEach(function (r) { if (r.r_status === "approved") seen[r.r_email] = true; });
+        var investors = Object.keys(seen).length;
+        var refCount = {};
+        S.refs.forEach(function (r) { refCount[r.r_email] = true; });
+
+        var t = tiersList.length ? INVTier.compute(tiersList, own, investors) : null;
+        var key = t ? t.tier.name.toLowerCase() : "none";
+        var st = kycStatus();
+        var kycText = { none: "Not verified", pending: "Under review", approved: "Verified", rejected: "Rejected" };
+
+        var initials = name.split(/\s+/).filter(Boolean);
+        var ini = (initials[0] ? initials[0].charAt(0) : "U") + (initials.length > 1 ? initials[initials.length - 1].charAt(0) : "");
+
+        var html = '<div class="pc-head"><span class="pm-avatar big tier-' + esc(key) + '">' + esc(ini.toUpperCase()) + '</span>' +
+            '<div><h2>' + esc(name) + '</h2><p>' + esc(ctx.session ? ctx.session.user.email : "") + '</p><div class="pc-badges">' +
+            (t ? '<span class="tier-badge ' + esc(key) + '">' + esc(t.tier.name) + ' level</span>' : '') +
+            (st ? '<span class="tier-badge kyc-' + esc(st) + '">' + (st === "approved" ? "✓ " : "") + kycText[st] + '</span>' : '') +
+            '</div></div></div><div class="pc-grid">';
+
+        html += '<div class="pc-box"><h3>My details</h3><dl class="pc-kv">' +
+            '<dt>Name</dt><dd>' + esc(name) + '</dd>' +
+            '<dt>Email</dt><dd>' + esc(ctx.session ? ctx.session.user.email : "-") + '</dd>' +
+            '<dt>Phone</dt><dd>' + esc(p.phone || "-") + '</dd>' +
+            '<dt>Member since</dt><dd>' + (p.created_at ? fmtDate(p.created_at) : "-") + '</dd>' +
+            '<dt>Referral code</dt><dd><b>' + esc(p.referral_code || "-") + '</b></dd>' +
+            '<dt>People referred</dt><dd>' + Object.keys(refCount).length + '</dd></dl></div>';
+
+        html += '<div class="pc-box"><h3>My level</h3>';
+
+        if (!t) {
+            html += '<p class="pc-note">Levels are not available yet.</p>';
+        } else {
+            html += '<p><span class="tier-badge ' + esc(key) + '">' + esc(t.tier.name) + '</span></p>';
+            if (t.next) {
+                var p1 = Math.min(100, own / Number(t.next.min_invested) * 100), p2 = Math.min(100, investors / Number(t.next.min_referrals) * 100);
+                html += '<p class="pc-note" style="margin-top:12px;">To reach <b>' + esc(t.next.name) + '</b>, do one of these:</p>' +
+                    '<div class="pc-note">Invest ' + money(own) + ' / ' + money(t.next.min_invested) + '</div><div class="pc-bar"><i style="width:' + p1.toFixed(0) + '%"></i></div>' +
+                    '<div class="pc-note">Referred people who invest: ' + investors + ' / ' + Number(t.next.min_referrals) + '</div><div class="pc-bar"><i style="width:' + p2.toFixed(0) + '%"></i></div>';
+            } else {
+                html += '<p class="pc-note" style="margin-top:12px;">You have reached the highest level. 🎉</p>';
+            }
         }
+
+        html += '</div><div class="pc-box" style="grid-column:1 / -1"><h3>Verification</h3>';
+
+        if (!st) {
+            html += '<p class="pc-note">Verification is not available yet.</p>';
+        } else if (st === "approved") {
+            html += '<p class="pc-note">✓ Your account is verified.</p>';
+        } else if (st === "pending") {
+            html += '<p class="pc-note">Your documents are under review. We will tell you here when an admin has checked them.</p>';
+        } else {
+            html += '<p class="pc-note">' + (st === "rejected" ? "Your last request was not accepted" + (kycLatest && kycLatest.reject_reason ? ": " + esc(kycLatest.reject_reason) : "") + ". " : "") +
+                    'Verify your account to avoid problems with deposits and withdrawals later.</p>' +
+                    '<p style="margin-top:12px;"><button type="button" class="btn btn-primary" data-go="verification">' + (st === "rejected" ? "Submit again" : "Verify now") + '</button></p>';
+        }
+
+        box.innerHTML = html + '</div></div>';
+
+        if (window.INVProfile && t) INVProfile.setTier({ id: t.tier.id, name: t.tier.name });
     }
 
     function renderTier() {
@@ -807,7 +888,7 @@
         renderKycBanner();
         renderKycStatus();
         renderVerifiedBadge();
-        if (S.summary) renderTier();
+        if (S.summary) { renderTier(); renderProfile(); }
     }
 
     /* ----- image helpers ----- */
@@ -943,6 +1024,7 @@
             if (r2.error) throw new Error(r2.error.message);
 
             ctx.profile.kyc_status = "pending";
+            if (window.INVProfile) INVProfile.setKyc("pending");
             selfieBlob = null;
             $("kycForm").reset();
             $("selfiePreview").hidden = true;
