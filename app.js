@@ -151,7 +151,7 @@
                     { id: 3, name: "Gold",    min_invested: 500,  min_referrals: 10 },
                     { id: 4, name: "Platinum", min_invested: 1000, min_referrals: 25 }
                 ],
-                kyc_submissions: [], kyc_files: {},
+                kyc_submissions: [], kyc_files: {}, avatar_files: {},
                 deposits: [], investments: [], profit_logs: [], referral_earnings: [], withdrawals: [],
                 audit_log: [], support_messages: [], site_content: [], banners: [],
                 seq: 0
@@ -168,6 +168,7 @@
                     d.banners = d.banners || [];
                     d.kyc_submissions = d.kyc_submissions || [];
                     d.kyc_files = d.kyc_files || {};
+                    d.avatar_files = d.avatar_files || {};
                     d.tiers = d.tiers || seed().tiers;
                     return d;
                 }
@@ -662,6 +663,24 @@
                 return null;
             },
 
+            update_my_profile: function (db, a) {
+                var m = needLoginRow(db);
+                var fn = String(a.p_first || "").trim(), ln = String(a.p_last || "").trim(), ph = String(a.p_phone || "").trim();
+                var digits = ph.replace(/[^0-9]/g, "");
+                if (!fn || !ln || fn.length > 60 || ln.length > 60) throw new Error("Please enter your first and last name");
+                if (digits.length < 10 || digits.length > 15 || ph.length > 30) throw new Error("Please enter a valid phone number");
+                if (m.kyc_status === "approved" && (fn !== (m.first_name || "") || ln !== (m.last_name || ""))) {
+                    throw new Error("Your name is locked because your account is verified. Contact support to change it.");
+                }
+                if (a.p_avatar != null && (a.p_avatar.indexOf(m.id + "/") !== 0 || a.p_avatar.indexOf("..") >= 0 || !/\.(jpe?g|png|webp)$/i.test(a.p_avatar))) {
+                    throw new Error("The profile photo is not valid");
+                }
+                m.first_name = fn; m.last_name = ln; m.phone = ph;
+                if (a.p_remove_avatar) m.avatar_path = null;
+                else if (a.p_avatar != null) m.avatar_path = a.p_avatar;
+                return null;
+            },
+
             submit_kyc: function (db, a) {
                 var m = needLoginRow(db);
                 var prefix = m.id + "/";
@@ -949,7 +968,7 @@
                         referral_code: genCode(db),
                         referred_by: ref ? ref.id : null,
                         role: (first || ADMINS.indexOf(email) > -1) ? "admin" : "user",
-                        suspended: false, suspended_at: null, kyc_status: "none",
+                        suspended: false, suspended_at: null, kyc_status: "none", avatar_path: null,
                         created_at: nowIso()
                     });
                 }
@@ -979,29 +998,45 @@
 
             storage: {
                 from: function (bucket) {
+
+                    var store  = bucket === "avatars" ? "avatar_files" : "kyc_files";
+                    var limit  = bucket === "avatars" ? 1048576 : 2097152;
+                    var mimes  = bucket === "avatars" ? ["image/jpeg", "image/png", "image/webp"] : ["image/jpeg", "image/png"];
+
                     return {
                         upload: async function (path, blob, opts) {
                             var db = load(), m = me(db);
                             if (!m) return { data: null, error: { message: "Please login first" } };
                             if (path.indexOf(m.id + "/") !== 0) return { data: null, error: { message: "new row violates row-level security policy" } };
-                            if (!blob || blob.size > 2097152) return { data: null, error: { message: "The file is too large (maximum 2 MB)" } };
-                            if (["image/jpeg", "image/png"].indexOf(blob.type) < 0) return { data: null, error: { message: "mime type not supported" } };
-                            if (db.kyc_files[path]) return { data: null, error: { message: "The resource already exists" } };
+                            if (!blob || blob.size > limit) return { data: null, error: { message: "The file is too large" } };
+                            if (mimes.indexOf(blob.type) < 0) return { data: null, error: { message: "mime type not supported" } };
+                            if (db[store][path]) return { data: null, error: { message: "The resource already exists" } };
                             var dataUrl = await new Promise(function (res, rej) {
                                 var fr = new FileReader();
                                 fr.onload = function () { res(fr.result); };
                                 fr.onerror = function () { rej(new Error("Could not read the file")); };
                                 fr.readAsDataURL(blob);
                             });
-                            db.kyc_files[path] = dataUrl;
+                            db = load();                       // read again: the page may have saved other data meanwhile
+                            db[store][path] = dataUrl;
                             save(db);
                             return { data: { path: path }, error: null };
                         },
                         createSignedUrl: async function (path) {
                             var db = load(), m = me(db);
                             if (!m || (m.role !== "admin" && path.indexOf(m.id + "/") !== 0)) return { data: null, error: { message: "Object not found" } };
-                            var u = db.kyc_files[path];
+                            var u = db[store][path];
                             return u ? { data: { signedUrl: u }, error: null } : { data: null, error: { message: "Object not found" } };
+                        },
+                        remove: async function (paths) {
+                            var db = load(), m = me(db);
+                            (paths || []).forEach(function (p) { if (m && p.indexOf(m.id + "/") === 0) delete db[store][p]; });
+                            save(db);
+                            return { data: [], error: null };
+                        },
+                        getPublicUrl: function (path) {
+                            var db = load();
+                            return { data: { publicUrl: (db[store] && db[store][path]) || "" } };
                         }
                     };
                 }
@@ -1881,7 +1916,14 @@
         var full = profile ? ((profile.first_name || "") + " " + (profile.last_name || "")).trim() : "";
         if (!full) full = sess.user.email;
 
-        var state = { kyc: (profile && typeof profile.kyc_status === "string") ? profile.kyc_status : null, tier: null };
+        function photoUrl(path) {
+            try { return path ? (sb.storage.from("avatars").getPublicUrl(path).data.publicUrl || "") : ""; } catch (e) { return ""; }
+        }
+
+        var state = {
+            kyc: (profile && typeof profile.kyc_status === "string") ? profile.kyc_status : null,
+            tier: null, name: full, photo: photoUrl(profile && profile.avatar_path)
+        };
 
         // the level is remembered for a minute so every page shows the same colour straight away
         try {
@@ -1893,12 +1935,12 @@
         wrap.className = "pm";
         wrap.innerHTML =
             '<button type="button" class="pm-btn" aria-haspopup="true" aria-expanded="false" aria-label="Open profile menu">' +
-                '<span class="pm-avatar" data-av>' + esc(initials(full)) + '<i class="pm-dot" hidden></i></span>' +
+                '<span class="pm-avatar" data-av><span class="pm-ini">' + esc(initials(full)) + '</span><i class="pm-dot" hidden></i></span>' +
                 '<span class="pm-name">' + esc(full) + '</span><span class="pm-caret">▾</span>' +
             '</button>' +
             '<div class="pm-menu" hidden role="menu">' +
                 '<div class="pm-top">' +
-                    '<span class="pm-avatar big" data-av>' + esc(initials(full)) + '</span>' +
+                    '<span class="pm-avatar big" data-av><span class="pm-ini">' + esc(initials(full)) + '</span></span>' +
                     '<div class="pm-who"><b>' + esc(full) + '</b><small>' + esc(sess.user.email) + '</small><div class="pm-badges"></div></div>' +
                 '</div>' +
                 '<a class="pm-item" role="menuitem" href="dashboard.html#profile"><span>👤</span> My profile</a>' +
@@ -1925,8 +1967,13 @@
             var key = state.tier ? String(state.tier.name).toLowerCase() : "none";
 
             wrap.querySelectorAll("[data-av]").forEach(function (a) {
-                a.className = a.className.replace(/\btier-\S+/g, "").trim() + " tier-" + key;
+                a.className = a.className.replace(/\btier-\S+/g, "").replace(/\bhas-img\b/g, "").trim() + " tier-" + key + (state.photo ? " has-img" : "");
+                a.style.backgroundImage = state.photo ? 'url("' + state.photo.replace(/"/g, "%22") + '")' : "";
+                var ini = a.querySelector(".pm-ini");
+                if (ini) ini.textContent = initials(state.name);
             });
+            wrap.querySelector(".pm-name").textContent = state.name;
+            wrap.querySelector(".pm-who b").textContent = state.name;
 
             var kycText = { none: "Not verified", pending: "Under review", approved: "Verified", rejected: "Rejected" };
             var badges = '';
@@ -1980,7 +2027,13 @@
         // other parts of the page can refresh the badge (for example after sending the documents)
         root.INVProfile = {
             setKyc: function (k) { state.kyc = k; paint(); },
-            setTier: function (t) { state.tier = t; paint(); }
+            setTier: function (t) { state.tier = t; paint(); },
+            setProfile: function (p) {
+                if (p.name != null) state.name = p.name;
+                if (p.photo !== undefined) state.photo = p.photo;
+                paint();
+            },
+            photoUrl: photoUrl
         };
     }
 
