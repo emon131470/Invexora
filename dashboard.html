@@ -205,6 +205,52 @@
 
         <div class="profile-card" id="profileCard"><div class="empty">Loading...</div></div>
 
+        <form class="deposit-box pe-form" id="peForm" hidden novalidate>
+
+            <h3>Edit profile</h3>
+
+            <div class="pe-photo">
+                <span class="pm-avatar big tier-none" id="peAvatar"><span class="pm-ini">U</span></span>
+                <div>
+                    <label class="chip pe-choose">Choose photo<input type="file" id="peFile" accept="image/jpeg,image/png,image/webp,image/*" hidden></label>
+                    <button type="button" class="chip" id="peRemove">Remove photo</button>
+                    <p class="form-hint">JPG, PNG or WEBP. Your photo is cropped to a square.</p>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="peFirst">First name</label>
+                    <input type="text" id="peFirst" maxlength="60" autocomplete="given-name">
+                </div>
+                <div class="form-group">
+                    <label for="peLast">Last name</label>
+                    <input type="text" id="peLast" maxlength="60" autocomplete="family-name">
+                </div>
+            </div>
+            <p class="form-hint" id="peNameLock" hidden>Your name is locked because your account is verified. Contact support to change it.</p>
+
+            <div class="form-group">
+                <label for="pePhone">Phone</label>
+                <input type="tel" id="pePhone" maxlength="30" autocomplete="tel">
+            </div>
+
+            <div class="form-group">
+                <label for="peEmail">Email</label>
+                <input type="email" id="peEmail" disabled>
+                <p class="form-hint">Your email is your login, so it cannot be changed here.</p>
+            </div>
+
+            <p class="form-error" id="peError" role="alert"></p>
+            <p class="form-ok" id="peOk" role="status"></p>
+
+            <div class="quick-amounts">
+                <button type="submit" class="btn btn-primary" id="peSave">Save changes</button>
+                <button type="button" class="btn btn-outline" id="peCancel">Cancel</button>
+            </div>
+
+        </form>
+
     </section>
 
     <!-- ================= VERIFICATION ================= -->
@@ -801,11 +847,14 @@
         var initials = name.split(/\s+/).filter(Boolean);
         var ini = (initials[0] ? initials[0].charAt(0) : "U") + (initials.length > 1 ? initials[initials.length - 1].charAt(0) : "");
 
-        var html = '<div class="pc-head"><span class="pm-avatar big tier-' + esc(key) + '">' + esc(ini.toUpperCase()) + '</span>' +
+        var photo = (window.INVProfile && p.avatar_path) ? INVProfile.photoUrl(p.avatar_path) : "";
+
+        var html = '<div class="pc-head"><span class="pm-avatar big tier-' + esc(key) + (photo ? ' has-img' : '') + '"' +
+            (photo ? ' style="background-image:url(\'' + esc(photo) + '\')"' : '') + '><span class="pm-ini">' + esc(ini.toUpperCase()) + '</span></span>' +
             '<div><h2>' + esc(name) + '</h2><p>' + esc(ctx.session ? ctx.session.user.email : "") + '</p><div class="pc-badges">' +
             (t ? '<span class="tier-badge ' + esc(key) + '">' + esc(t.tier.name) + ' level</span>' : '') +
             (st ? '<span class="tier-badge kyc-' + esc(st) + '">' + (st === "approved" ? "✓ " : "") + kycText[st] + '</span>' : '') +
-            '</div></div></div><div class="pc-grid">';
+            '</div><p style="margin-top:12px;"><button type="button" class="btn btn-outline" data-edit-profile="1" style="padding:8px 18px;">Edit profile</button></p></div></div><div class="pc-grid">';
 
         html += '<div class="pc-box"><h3>My details</h3><dl class="pc-kv">' +
             '<dt>Name</dt><dd>' + esc(name) + '</dd>' +
@@ -1045,6 +1094,133 @@
     document.addEventListener("click", function (e) {
         var g = e.target.closest("[data-go]");
         if (g) { e.preventDefault(); showView(g.getAttribute("data-go")); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    });
+
+
+    /* ===== EDIT PROFILE (name, phone, photo) ===== */
+    var peBlob = null, peRemoveFlag = false;
+
+    function peShowAvatar(url, name) {
+        var a = $("peAvatar");
+        var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+        a.querySelector(".pm-ini").textContent = ((parts[0] || "U").charAt(0) + (parts.length > 1 ? parts[parts.length - 1].charAt(0) : "")).toUpperCase();
+        a.style.backgroundImage = url ? 'url("' + url + '")' : "";
+        a.classList.toggle("has-img", !!url);
+    }
+
+    function openProfileEdit() {
+
+        var p = ctx.profile || {};
+
+        $("peFirst").value = p.first_name || "";
+        $("peLast").value  = p.last_name || "";
+        $("pePhone").value = p.phone || "";
+        $("peEmail").value = ctx.session ? ctx.session.user.email : "";
+        $("peError").textContent = ""; $("peOk").textContent = "";
+        peBlob = null; peRemoveFlag = false;
+
+        var locked = kycStatus() === "approved";
+        $("peFirst").disabled = locked; $("peLast").disabled = locked;
+        $("peNameLock").hidden = !locked;
+
+        var url = (window.INVProfile && p.avatar_path) ? INVProfile.photoUrl(p.avatar_path) : "";
+        peShowAvatar(url, (p.first_name || "") + " " + (p.last_name || ""));
+
+        $("peForm").hidden = false;
+        $("peForm").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function cropSquare(file) {
+        return new Promise(function (resolve, reject) {
+            if (!file || file.type.indexOf("image/") !== 0) { reject(new Error("Please choose an image (JPG, PNG or WEBP)")); return; }
+            var url = URL.createObjectURL(file), img = new Image();
+            img.onload = function () {
+                var side = Math.min(img.naturalWidth, img.naturalHeight), out = 400;
+                var c = document.createElement("canvas");
+                c.width = out; c.height = out;
+                c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, out, out);
+                URL.revokeObjectURL(url);
+                c.toBlob(function (b) { b ? resolve(b) : reject(new Error("Could not process the image")); }, "image/jpeg", 0.88);
+            };
+            img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Could not read that image")); };
+            img.src = url;
+        });
+    }
+
+    document.addEventListener("click", function (e) {
+        if (e.target.closest("[data-edit-profile]")) openProfileEdit();
+    });
+
+    $("peCancel").addEventListener("click", function () { $("peForm").hidden = true; });
+
+    $("peFile").addEventListener("change", async function () {
+        $("peError").textContent = "";
+        var f = this.files[0];
+        if (!f) return;
+        try {
+            peBlob = await cropSquare(f);
+            peRemoveFlag = false;
+            peShowAvatar(URL.createObjectURL(peBlob), $("peFirst").value + " " + $("peLast").value);
+        } catch (ex) { $("peError").textContent = ex.message; }
+        this.value = "";
+    });
+
+    $("peRemove").addEventListener("click", function () {
+        peBlob = null; peRemoveFlag = true;
+        peShowAvatar("", $("peFirst").value + " " + $("peLast").value);
+    });
+
+    $("peForm").addEventListener("submit", async function (e) {
+
+        e.preventDefault();
+
+        var err = $("peError"), ok = $("peOk");
+        err.textContent = ""; ok.textContent = "";
+
+        var fn = $("peFirst").value.trim(), ln = $("peLast").value.trim(), ph = $("pePhone").value.trim();
+
+        if (!fn || !ln) { err.textContent = "Please enter your first and last name."; return; }
+        if (ph.replace(/[^0-9]/g, "").length < 10) { err.textContent = "Please enter a valid phone number."; return; }
+
+        var btn = $("peSave");
+        btn.disabled = true;
+        ok.textContent = "Saving...";
+
+        try {
+
+            var uid = ctx.session.user.id, old = ctx.profile.avatar_path || null, newPath = null;
+
+            if (peBlob) {
+                newPath = uid + "/" + Date.now() + "-" + Math.random().toString(36).slice(2, 10) + ".jpg";
+                var up = await ctx.sb.storage.from("avatars").upload(newPath, peBlob, { contentType: "image/jpeg", upsert: false });
+                if (up.error) throw new Error(up.error.message);
+            }
+
+            var r = await ctx.sb.rpc("update_my_profile", { p_first: fn, p_last: ln, p_phone: ph, p_avatar: newPath, p_remove_avatar: peRemoveFlag });
+            if (r.error) throw new Error(r.error.message);
+
+            // the photo that was replaced (or removed) is deleted from storage
+            if (old && (newPath || peRemoveFlag)) { try { await ctx.sb.storage.from("avatars").remove([old]); } catch (x) {} }
+
+            ctx.profile.first_name = fn; ctx.profile.last_name = ln; ctx.profile.phone = ph;
+            if (newPath) ctx.profile.avatar_path = newPath;
+            if (peRemoveFlag) ctx.profile.avatar_path = null;
+
+            if (window.INVProfile) {
+                INVProfile.setProfile({ name: fn + " " + ln, photo: ctx.profile.avatar_path ? INVProfile.photoUrl(ctx.profile.avatar_path) : "" });
+            }
+
+            peBlob = null; peRemoveFlag = false;
+            renderProfile();
+            $("peForm").hidden = true;
+            window.scrollTo({ top: 0, behavior: "smooth" });
+
+        } catch (ex) {
+            ok.textContent = "";
+            err.textContent = ex.message || "Something went wrong. Please try again.";
+        }
+
+        btn.disabled = false;
     });
 
     /* ----- the notice shown right after registering ----- */
