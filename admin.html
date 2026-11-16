@@ -162,6 +162,9 @@
         .badge.Off       { background: rgba(255,196,71,0.14); color: #ffc447; }
         .hint { color: var(--faint); font-size: 12px; margin-top: 4px; }
         @media (max-width: 700px) { .cms-grid { grid-template-columns: 1fr; } }
+        .av { display: inline-block; flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; background: #2a3550 center / cover no-repeat; border: 2px solid #4a5678; }
+        .av.big { width: 46px; height: 46px; }
+        .who { display: flex; align-items: center; gap: 10px; }
         .tier-badge { display: inline-block; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; }
         .tier-badge.bronze  { background: rgba(205,127,50,0.18); color: #e6a26a; border: 1px solid rgba(205,127,50,0.45); }
         .tier-badge.silver  { background: rgba(200,210,225,0.14); color: #d6dde9; border: 1px solid rgba(200,210,225,0.4); }
@@ -333,10 +336,21 @@
         $("toast").className = "toast " + (text ? (ok ? "ok" : "err") : "");
     }
 
+    function photoOf(p) {
+        try { return p && p.avatar_path ? (ctx.sb.storage.from("avatars").getPublicUrl(p.avatar_path).data.publicUrl || "") : ""; } catch (e) { return ""; }
+    }
+
+    function avatarSpan(p, big) {
+        var u = photoOf(p);
+        return u ? "<span class='av" + (big ? " big" : "") + "' style=\"background-image:url('" + esc(u) + "')\"></span>" : "";
+    }
+
     function userLabel(p) {
         if (!p) return "<span class='muted'>-</span>";
         var name = ((p.first_name || "") + " " + (p.last_name || "")).trim();
-        return esc(name || p.email) + "<div class='small'>" + esc(p.email) + "</div>";
+        var text = esc(name || p.email) + "<div class='small'>" + esc(p.email) + "</div>";
+        var av = avatarSpan(p, false);
+        return av ? "<div class='who'>" + av + "<div>" + text + "</div></div>" : text;
     }
 
     function nameOf(u) {
@@ -634,7 +648,7 @@
             }
 
             html += "<tr>" +
-                "<td>" + esc(nameOf(u) === u.email ? "-" : nameOf(u)) + "</td>" +
+                "<td><div class='who'>" + avatarSpan(u, false) + "<span>" + esc(nameOf(u) === u.email ? "-" : nameOf(u)) + "</span></div></td>" +
                 "<td class='muted'>" + esc(u.email) + "</td>" +
                 "<td class='muted'>" + esc(u.phone || "-") + "</td>" +
                 "<td><b>" + esc(u.referral_code) + "</b></td>" +
@@ -694,7 +708,7 @@
 
         var s = r[0].data, inv = r[1].data, dep = r[2].data, wd = r[3].data;
 
-        var html = '<div class="panel"><div class="panel-head"><h3>' + esc(nameOf(u)) + ' <span class="small">' + esc(u ? u.email : "") + '</span></h3>' +
+        var html = '<div class="panel"><div class="panel-head"><h3 class="who">' + avatarSpan(u, true) + '<span>' + esc(nameOf(u)) + ' <span class="small">' + esc(u ? u.email : "") + '</span></span></h3>' +
             '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div>' +
             '<div class="mini-stats">' +
               '<div><small>Available balance</small><strong>' + money(s.available) + '</strong></div>' +
@@ -1355,7 +1369,7 @@
         var sameName = String(k.full_name).trim().toLowerCase() === nameOf(p).trim().toLowerCase();
         var history = cache.kyc.filter(function (x) { return x.user_id === userId; });
 
-        var html = '<div class="panel"><div class="panel-head"><h3>Verification: ' + esc(nameOf(p)) + ' ' + kycBadge(p.kyc_status) + '</h3>' +
+        var html = '<div class="panel"><div class="panel-head"><h3 class="who">' + avatarSpan(p, true) + '<span>Verification: ' + esc(nameOf(p)) + ' ' + kycBadge(p.kyc_status) + '</span></h3>' +
             '<button class="btn btn-ghost" data-close-detail="1" style="padding:8px 16px;">Close</button></div>' +
             '<div class="kyc-grid"><div>' +
               '<div class="sub-h" style="margin-top:0">ACCOUNT INFORMATION</div><dl class="kv">' +
