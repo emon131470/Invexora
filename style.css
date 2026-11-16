@@ -627,3 +627,17 @@ h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
 .pc-bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #dfff3d, #c6f400); }
 .pc-note { color: var(--muted); font-size: 13px; margin-top: 6px; }
 @media (max-width: 800px) { .pc-grid { grid-template-columns: 1fr; } }
+
+/* ================= PROFILE PHOTO + EDIT FORM ================= */
+.pm-avatar.has-img { background-size: cover; background-position: center; background-repeat: no-repeat; }
+.pm-avatar.has-img .pm-ini { display: none; }
+.pm-ini { line-height: 1; }
+.pe-form { margin-top: 22px; }
+.pe-form h3 { font-size: 20px; margin-bottom: 18px; }
+.pe-photo { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+.pe-photo .pm-avatar { width: 92px; height: 92px; font-size: 30px; }
+.pe-photo .chip { margin: 0 8px 8px 0; display: inline-block; }
+.pe-choose { cursor: pointer; }
+.pe-form .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+.pe-form .form-hint { margin-top: 6px; }
+.pe-form[hidden] { display: none; }
